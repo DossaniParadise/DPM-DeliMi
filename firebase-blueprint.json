@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "Store": {
+      "title": "Store",
+      "description": "Metadata for a store location",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "font": { "type": "string" },
+            "primaryColor": { "type": "string" }
+          }
+        }
+      },
+      "required": ["name"]
+    },
+    "Screen": {
+      "title": "Screen",
+      "description": "A digital signage screen configuration",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "backgroundImage": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" },
+        "isStaging": { "type": "boolean" }
+      },
+      "required": ["name"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A group of items displayed together on a screen",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "x": { "type": "number", "description": "X position as percentage (0-100)" },
+        "y": { "type": "number", "description": "Y position as percentage (0-100)" },
+        "order": { "type": "number" }
+      },
+      "required": ["name", "x", "y"]
+    },
+    "Item": {
+      "title": "Item",
+      "description": "A menu item with a name and price label",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "priceLabel": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["name", "priceLabel"]
+    }
+  },
+  "firestore": {
+    "/stores/{storeId}": {
+      "schema": "Store",
+      "description": "Store metadata"
+    },
+    "/stores/{storeId}/screens/{screenId}": {
+      "schema": "Screen",
+      "description": "Screen configuration"
+    },
+    "/stores/{storeId}/screens/{screenId}/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Menu categories for a specific screen"
+    },
+    "/stores/{storeId}/screens/{screenId}/categories/{categoryId}/items/{itemId}": {
+      "schema": "Item",
+      "description": "Menu items within a category"
+    }
+  }
+}
