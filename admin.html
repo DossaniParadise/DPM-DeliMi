@@ -51,6 +51,7 @@
   .field > span { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
   .field input, .field textarea { width: 100%; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 10px 12px; font-size: 15px; }
   .field input:focus, .field textarea:focus { outline: 2px solid var(--orange); border-color: transparent; }
+  .field select.sel { width: 100%; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 10px 12px; font-size: 15px; }
   .switch { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
   .switch input { width: 20px; height: 20px; }
 
@@ -305,6 +306,9 @@
   function message(title, body, retry) { $("#msgTitle").textContent = title; $("#msgBody").textContent = body; $("#msgRetry").classList.toggle("hidden", !retry); $("#msgRetry").onclick = retry || null; show("msg"); }
   function toast(text, bad = false, ms = 2600) { const t = document.createElement("div"); t.className = "toast" + (bad ? " bad" : ""); t.textContent = text; $("#toastHost").appendChild(t); setTimeout(() => t.remove(), ms); }
   const screen = () => S.loc?.screens?.[S.si];
+  const BRANDS = { deli: "Paradise Deli", taqueria: "Paradise Taqueria", quickstop: "Paradise Quick Stop" };
+  const brandOptions = (cur, allowDefault) => (allowDefault ? `<option value="" ${!cur ? "selected" : ""}>Same as the store</option>` : "")
+    + Object.entries(BRANDS).map(([k, v]) => `<option value="${k}" ${cur === k ? "selected" : ""}>${v}</option>`).join("");
 
   // --------------------------------------------------------------- auth --
   $("#loginForm").addEventListener("submit", async e => {
@@ -499,10 +503,12 @@
       p.innerHTML = `<h3>${esc(S.loc.name || S.locId)} <small>TV ${S.si + 1}</small></h3>
         <p class="hint"><b>Click</b> a section, photo or text on the TV to edit it. <b>Drag</b> to move it. Pull the <b>orange corner</b> to resize.</p>
         <div class="secs"><h3>Sections</h3><div class="list">${cats.map(c => `<div class="it" data-pick="cat:${esc(c.id)}"><span class="n">${esc(c.name)}<small>${(c.items || []).length} items</small></span><span>›</span></div>`).join("") || `<div class="it"><span class="n info">No sections yet — click ＋ Section above.</span></div>`}</div></div>
+        <div class="secs"><h3>Logo on this TV</h3><label class="field"><select id="pBrand" class="sel">${brandOptions(sc.brand || "", true)}</select><small class="info">Store default: ${esc(BRANDS[S.loc.brand || "deli"])} (change it under ⚙)</small></label></div>
         <div class="secs"><h3>Note at the bottom</h3><label class="field"><input id="pNote" value="${esc(sc.note || "")}" placeholder="e.g. All meals come with a 20 oz drink"></label></div>
         <div class="secs"><h3>Photos & text</h3><div class="list">${(sc.images || []).map(im => `<div class="it" data-pick="${esc(im.id)}"><span class="n">📷 Photo${im.label ? " · " + esc(im.label) : ""}</span><span>›</span></div>`).join("")}${(sc.texts || []).map(t => `<div class="it" data-pick="text:${esc(t.id)}"><span class="n">✎ ${esc(t.text)}</span><span>›</span></div>`).join("")}${!(sc.images || []).length && !(sc.texts || []).length ? `<div class="it"><span class="n info">None yet — use 📷 Add photo or ＋ Text.</span></div>` : ""}</div></div>`;
       $$("[data-pick]", p).forEach(el => el.onclick = () => { S.sel = el.dataset.pick; canvas.draw(); renderPanel(); });
       $("#pNote").onchange = e => mutate(loc => { loc.screens[S.si].note = e.target.value.trim(); }, "Saved");
+      $("#pBrand").onchange = e => mutate(loc => { loc.screens[S.si].brand = e.target.value; }, "Logo changed");
       return;
     }
     const o = b.o;
@@ -680,10 +686,13 @@
     const sc = screen();
     const el = sheet(`<h3>${esc(S.loc.name || S.locId)}</h3>
       <div class="switch"><span>Store is live <small class="info">(shows in the store list)</small></span><input type="checkbox" id="sActive" ${S.loc.active !== false ? "checked" : ""}></div>
-      ${sc ? `<label class="field"><span>Name for TV ${S.si + 1} (only editors see this)</span><input id="sTitle" value="${esc(sc.title || "")}" placeholder="e.g. Breakfast board"></label>
+      <label class="field"><span>Logo on this store's TVs</span><select id="sBrand" class="sel">${brandOptions(S.loc.brand || "deli", false)}</select></label>
+      ${sc ? `<label class="field"><span>Logo on TV ${S.si + 1} only</span><select id="sScreenBrand" class="sel">${brandOptions(sc.brand || "", true)}</select></label>
+      <label class="field"><span>Name for TV ${S.si + 1} (only editors see this)</span><input id="sTitle" value="${esc(sc.title || "")}" placeholder="e.g. Breakfast board"></label>
       <p class="info">This TV's link: <a href="index.html?id=${esc(S.locId)}&screen=${S.si + 1}" target="_blank">index.html?id=${esc(S.locId)}&screen=${S.si + 1}</a></p>` : ""}
       <div class="btns"><button class="btn primary grow2" id="sSave">Save</button>${sc ? `<button class="btn danger" id="sDel">Delete TV ${S.si + 1}</button>` : ""}</div>`);
-    $("#sSave", el).onclick = () => { const active = $("#sActive", el).checked, title = $("#sTitle", el)?.value.trim(); mutate(loc => { loc.active = active; if (sc) loc.screens[S.si].title = title; }, "Saved"); closeSheet(); };
+    $("#sSave", el).onclick = () => { const active = $("#sActive", el).checked, title = $("#sTitle", el)?.value.trim(), brand = $("#sBrand", el).value, sb = $("#sScreenBrand", el)?.value || "";
+      mutate(loc => { loc.active = active; loc.brand = brand; if (sc) { loc.screens[S.si].title = title; loc.screens[S.si].brand = sb; } }, "Saved"); closeSheet(); };
     if (sc) $("#sDel", el).onclick = () => { const n = (sc.categories || []).reduce((a, c) => a + (c.items || []).length, 0); if (!confirm(`Delete TV ${S.si + 1}${n ? ` and its ${n} items` : ""}?`)) return; S.sel = null; mutate(loc => { loc.screens.splice(S.si, 1); S.si = Math.max(0, S.si - 1); }, "TV deleted"); closeSheet(); };
   };
 </script>
