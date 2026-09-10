@@ -1,14 +1,213 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DeliSign Ecosystem</title>
-    <link rel="manifest" href="/manifest.json" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paradise Deli Menu</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+  /* ======================================================================
+     Paradise Deli — kiosk display
+     Brand tokens (swap here): orange from the logo, black board, sky header.
+     ====================================================================== */
+  :root {
+    --orange: #F39323;
+    --orange-deep: #D97A12;
+    --board: #000000;
+    --ink: #ffffff;
+    --ink-dim: #cfcfcf;
+    --sky: #bfe6f7;
+    --font: 'Poppins', 'Segoe UI', Arial, sans-serif;
+    /* Base size in viewport units so a 1080p TV and a 4K TV look the same.
+       JS lowers --fs if a long menu overflows the screen. */
+    --fs: 1.55vw;
+    --cols: 2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--board); color: var(--ink); font-family: var(--font); }
+  body { display: flex; flex-direction: column; min-height: 100vh; overflow: hidden; }
 
+  /* Header: sky + palms photo strip with the logo. */
+  .hdr {
+    flex: 0 0 auto; height: 22vh; position: relative; display: flex; align-items: center; justify-content: center;
+    background: var(--sky) url('assets/header-bg.jpg') center/cover no-repeat;
+  }
+  .hdr img { height: 72%; max-width: 60vw; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,.35)); }
+  .hdr .store { position: absolute; right: 1.5vw; bottom: .8vh; font-size: calc(var(--fs) * .8); font-weight: 600;
+    color: #1b3a4b; background: rgba(255,255,255,.65); padding: .2em .7em; border-radius: 999px; }
+
+  /* Orange rail on the left like the printed boards. */
+  .board { flex: 1 1 0; min-height: 0; position: relative; padding: 2vh 2.5vw 1.5vh 3vw; overflow: hidden; }
+  .board::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1.2vw; background: var(--orange); }
+
+  .menu { column-count: var(--cols); column-gap: 3vw; }
+  .cat { break-inside: avoid; -webkit-column-break-inside: avoid; margin-bottom: calc(var(--fs) * 1.1); }
+  /* Long categories: heading spans the board, items flow down both columns (like the printed "Appetizers and Snacks"). */
+  .cat.wide { break-inside: auto; -webkit-column-break-inside: auto; }
+  .cat.wide h2, .cat.wide .note { column-span: all; -webkit-column-span: all; }
+  .cat h2 {
+    margin: 0 0 .35em; text-align: center; color: var(--orange); text-transform: uppercase;
+    letter-spacing: .12em; font-weight: 800; font-size: calc(var(--fs) * 1.55); line-height: 1.15;
+    border-bottom: .18em solid var(--orange); padding-bottom: .12em;
+  }
+  .cat .note { font-style: italic; color: var(--ink-dim); font-size: calc(var(--fs) * .85); margin: 0 0 .5em; text-align: center; }
+  .item { display: flex; align-items: baseline; gap: .8em; font-size: var(--fs); line-height: 1.35; padding: .08em 0; }
+  .item .name { flex: 1 1 auto; font-weight: 500; }
+  .item .dots { flex: 1 1 auto; border-bottom: 2px dotted #444; transform: translateY(-.35em); min-width: 1em; }
+  .item .price { flex: 0 0 auto; font-weight: 700; white-space: nowrap; letter-spacing: .04em; }
+  .item .desc { display: block; font-weight: 400; color: var(--ink-dim); font-size: .78em; line-height: 1.25; }
+  .item.hidden-item { display: none; }
+  .screen-note { text-align: center; color: var(--orange); font-weight: 700; font-size: calc(var(--fs) * 1.05); margin-top: 1vh; }
+
+  /* Status line + admin link (tiny, bottom corners). */
+  .status { position: fixed; left: 1.6vw; bottom: .5vh; font-size: .75vw; color: #555; }
+  .status.offline { color: #b36; }
+  .admin-link { position: fixed; right: .6vw; bottom: .5vh; font-size: .8vw; color: #444; text-decoration: none; opacity: .7; }
+  .admin-link:hover { color: var(--orange); opacity: 1; }
+  body.preview .status, body.preview .admin-link { display: none; }
+
+  /* Store selector + error states. */
+  .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4vh 6vw; text-align: center; }
+  .center h1 { color: var(--orange); font-size: 2.4vw; margin: 0 0 1vh; }
+  .center p { color: var(--ink-dim); font-size: 1.2vw; max-width: 60vw; }
+  .stores { display: grid; grid-template-columns: repeat(auto-fill, minmax(18vw, 1fr)); gap: 1vw; width: 80vw; margin-top: 2vh; }
+  .store-card { background: #141414; border: 1px solid #2a2a2a; border-radius: .8vw; padding: 1vw; text-align: left; }
+  .store-card b { display: block; font-size: 1.1vw; margin-bottom: .4vw; }
+  .store-card a { display: inline-block; margin: .15vw .3vw .15vw 0; padding: .35vw .8vw; background: var(--orange); color: #000;
+    font-weight: 700; border-radius: 999px; text-decoration: none; font-size: .9vw; }
+  .center a.btn { color: var(--orange); font-size: 1.2vw; }
+  @media (max-width: 800px) {
+    :root { --fs: 4vw; --cols: 1; }
+    .hdr { height: 16vh; }
+    .stores { grid-template-columns: 1fr; width: 90vw; }
+    .center h1 { font-size: 6vw; } .center p { font-size: 3.6vw; max-width: 90vw; }
+    .store-card b { font-size: 4vw; } .store-card a { font-size: 3.4vw; padding: 1vw 3vw; }
+    .status, .admin-link { font-size: 3vw; }
+    body { overflow: auto; }
+  }
+</style>
+</head>
+<body>
+  <div id="app" class="center"><p>Loading menu…</p></div>
+  <div id="status" class="status"></div>
+  <a id="adminLink" class="admin-link" href="admin.html">Admin</a>
+
+<script type="module">
+  import { db, $, $$, esc, resolveScreen, storeSort, fmtTime } from "./common.js";
+  import { DAILY_RELOAD_HOUR } from "./config.js";
+  import { doc, collection, onSnapshot, query, where }
+    from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+  const params = new URLSearchParams(location.search);
+  const locId = (params.get("id") || "").trim().toUpperCase();
+  const screenNo = Math.max(1, parseInt(params.get("screen") || "1", 10) || 1);
+  const isPreview = params.get("preview") === "1";
+  if (isPreview) document.body.classList.add("preview");
+
+  const appEl = $("#app");
+  const statusEl = $("#status");
+  let locationDoc = null, catalog = null, lastFromCache = false;
+
+  // ---------------------------------------------------------------- Kiosk --
+  if (locId) {
+    $("#adminLink").href = `admin.html?id=${encodeURIComponent(locId)}&screen=${screenNo}`;
+    // Live listeners. Firestore only sends changed documents, so leaving these
+    // open all day costs nothing while nothing changes.
+    onSnapshot(doc(db, "locations", locId), snap => {
+      locationDoc = snap.exists() ? snap.data() : false;
+      lastFromCache = snap.metadata.fromCache;
+      render();
+    }, err => { console.error(err); showStatus("Connection error: " + err.code, true); });
+
+    onSnapshot(collection(db, "menuItems"), snap => {
+      const c = {};
+      snap.forEach(d => { c[d.id] = d.data(); });
+      catalog = c;
+      render();
+    }, err => console.error(err));
+
+    scheduleDailyReload();
+  } else {
+    // No ?id= → store picker (not used by kiosks, handy for humans).
+    onSnapshot(query(collection(db, "locations"), where("active", "==", true)), snap => {
+      const rows = [];
+      snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      rows.sort((a, b) => storeSort(a.id, b.id));
+      appEl.className = "center";
+      appEl.innerHTML = `<h1>Select your store</h1><p>Each store has one URL per TV. Open the screen this TV should show.</p>
+        <div class="stores">${rows.map(r => `<div class="store-card"><b>${esc(r.name)} <span style="color:#888">(${esc(r.id)})</span></b>
+          ${Array.from({ length: Math.max(1, r.screenCount || (r.screens || []).length || 1) }, (_, i) =>
+            `<a href="?id=${esc(r.id)}&screen=${i + 1}">Screen ${i + 1}${r.screens?.[i]?.title ? " · " + esc(r.screens[i].title) : ""}</a>`).join("")}
+        </div>`).join("")}</div>`;
+    });
+  }
+
+  function render() {
+    if (locationDoc === null || catalog === null) return;      // still waiting on first data
+    if (locationDoc === false) {
+      appEl.className = "center";
+      appEl.innerHTML = `<h1>Unknown location “${esc(locId)}”</h1><p>There is no store with this id.</p><a class="btn" href="./">Choose a store</a>`;
+      document.title = "Unknown location";
+      return;
+    }
+    const screen = resolveScreen(locationDoc, screenNo - 1, catalog);
+    document.title = `${locationDoc.name || locId} · Screen ${screenNo}`;
+    if (!screen) {
+      appEl.className = "center";
+      appEl.innerHTML = `<h1>${esc(locationDoc.name || locId)}</h1><p>Screen ${screenNo} has not been set up yet. Add it in the admin page.</p>`;
+      showStatus(`Updated ${fmtTime()}${lastFromCache ? " (offline copy)" : ""}`, lastFromCache);
+      return;
+    }
+    appEl.className = "";
+    appEl.innerHTML = `
+      <div class="hdr"><img src="${esc(locationDoc.logoUrl || "assets/logo.png")}" alt="Paradise Deli">
+        <span class="store">${esc(locationDoc.name || locId)}</span></div>
+      <div class="board"><div class="menu">
+        ${screen.categories.map(cat => `<section class="cat ${cat.items.filter(it => !it.hidden && !it.missing).length > 14 ? "wide" : ""}">
+          <h2>${esc(cat.name)}</h2>
+          ${cat.note ? `<p class="note">${esc(cat.note)}</p>` : ""}
+          ${cat.items.filter(it => !it.hidden && !it.missing).map(it => `<div class="item">
+            <span class="name">${esc(it.name)}${it.description ? `<span class="desc">${esc(it.description)}</span>` : ""}</span>
+            <span class="dots"></span><span class="price">${esc(it.price)}</span></div>`).join("")}
+        </section>`).join("")}
+      </div>${screen.note ? `<div class="screen-note">${esc(screen.note)}</div>` : ""}</div>`;
+    showStatus(`Updated ${fmtTime()}${lastFromCache ? " · showing offline copy" : ""}`, lastFromCache);
+    fitToScreen();
+  }
+
+  // Shrink the base font step by step until nothing is clipped (kiosk = no scrolling).
+  function fitToScreen() {
+    if (window.innerWidth <= 800) return;
+    const root = document.documentElement;
+    let fs = 1.55;
+    root.style.setProperty("--fs", fs + "vw");
+    const board = $(".board"), menu = $(".menu");
+    if (!board || !menu) return;
+    const limit = () => Math.min(window.innerHeight, board.getBoundingClientRect().bottom) - 12;
+    const lowest = () => Math.max(0, ...$$(".item, .cat h2, .cat .note, .screen-note", board).map(el => el.getBoundingClientRect().bottom));
+    let guard = 0;
+    while (lowest() > limit() && fs > 0.7 && guard++ < 60) {
+      fs -= 0.04;
+      root.style.setProperty("--fs", fs.toFixed(2) + "vw");
+    }
+  }
+  window.addEventListener("resize", () => { if (locationDoc && catalog) render(); });
+
+  function showStatus(text, bad) {
+    statusEl.textContent = text;
+    statusEl.classList.toggle("offline", !!bad);
+  }
+
+  // One full reload a day (3 AM local by default) keeps an 18-hour kiosk session tidy.
+  function scheduleDailyReload() {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(DAILY_RELOAD_HOUR, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    setTimeout(() => location.reload(), next - now);
+  }
+</script>
+</body>
+</html>
