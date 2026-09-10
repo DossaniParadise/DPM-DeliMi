@@ -178,10 +178,11 @@
     // No ?id= → dropdown picker + admin login link.
     onSnapshot(query(collection(db, "locations"), where("active", "==", true)), snap => {
       gotData = true;
-      const rows = []; snap.forEach(d => rows.push({ id: d.id, ...d.data() })); rows.sort((a, b) => storeSort(a.id, b.id));
+      // Only stores that are active AND have at least one screen set up.
+      const rows = []; snap.forEach(d => { const r = { id: d.id, ...d.data() }; if ((r.screens || []).length) rows.push(r); }); rows.sort((a, b) => storeSort(a.id, b.id));
       appEl.className = "center";
       if (!rows.length) {
-        appEl.innerHTML = `<h1>No stores yet</h1><p>Firestore has no active locations. Run <code>seed.html</code> once, or add stores in the admin page.</p><p class="login"><a href="admin.html">Admin login →</a></p>`;
+        appEl.innerHTML = `<h1>No stores yet</h1><p>No active store has a screen set up. Run <code>seed.html</code> once, or add stores in the admin page.</p><p class="login"><a href="admin.html">Admin login →</a></p>`;
         return;
       }
       appEl.innerHTML = `<h1>Select your store</h1><p>Each TV has its own screen number.</p>
@@ -191,9 +192,9 @@
         <p class="login"><a href="admin.html">Admin login →</a></p>`;
       const sel = $("#storeSel");
       const showScreens = () => {
-        const r = rows.find(x => x.id === sel.value); const n = Math.max(1, r.screenCount || (r.screens || []).length || 1);
-        $("#screens").innerHTML = Array.from({ length: n }, (_, i) =>
-          `<a href="?id=${esc(r.id)}&screen=${i + 1}">Screen ${i + 1}${r.screens?.[i]?.title ? " · " + esc(r.screens[i].title) : ""}</a>`).join("");
+        const r = rows.find(x => x.id === sel.value);
+        $("#screens").innerHTML = (r.screens || []).map((s, i) =>
+          `<a href="?id=${esc(r.id)}&screen=${i + 1}">Screen ${i + 1}${s.title ? " · " + esc(s.title) : ""}</a>`).join("");
       };
       sel.onchange = showScreens; showScreens();
       $("#go").onclick = () => { location.href = `?id=${encodeURIComponent(sel.value)}&screen=1`; };
