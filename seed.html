@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Paradise Deli · Seed data</title>
+<title>DeliMi · Seed data</title>
 <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="shortcut icon" href="favicon.ico">
@@ -11,8 +11,8 @@
 <meta name="apple-mobile-web-app-title" content="DeliMi">
 <link rel="manifest" href="site.webmanifest">
 <style>
-  body { font-family: system-ui, sans-serif; background: #111; color: #eee; max-width: 720px; margin: 40px auto; padding: 0 20px; }
-  h1 { color: #F39323; }
+  body { font-family: system-ui, sans-serif; background: #041f20; color: #eee; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+  h1 { color: #09E7E8; }
   input, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: #eee; }
   button { background: #F39323; color: #000; font-weight: 700; cursor: pointer; }
   button:disabled { opacity: .5; }
@@ -22,7 +22,7 @@
 </style>
 </head>
 <body>
-  <h1>Seed Paradise Deli menus</h1>
+  <h1>DeliMi · Seed menus</h1>
   <p>One-time (or re-run) import of the transcribed menus into Firestore. Works from GitHub Pages or opened straight from your desktop. Sign in as a <b>super admin</b> first.</p>
   <p class="warn">Re-running <b>replaces the screens</b> of every store listed in <code>SEED_DATA.menus</code> and upserts catalog items. Stores without a transcribed menu keep whatever screens admins built; only their <code>active</code> flag is synced (inactive stores are hidden from the store picker).</p>
   <div id="login">
