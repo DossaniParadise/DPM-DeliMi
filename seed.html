@@ -75,10 +75,10 @@ window.SEED_DATA = {
     { id: 'PQS13', name: 'Paradise Quick Stop #13', storeNumber: '#13', screenCount: 1, active: false },
     { id: 'PQS14', name: 'Paradise Quick Stop #14', storeNumber: '#14', screenCount: 1, active: false },
     { id: 'PQS15', name: 'Paradise Quick Stop #15', storeNumber: '#15', screenCount: 1, active: true },
-    { id: 'PQS16', name: 'Paradise Quick Stop #16', storeNumber: '#16', screenCount: 2, active: true },
+    { id: 'PQS16', name: 'Paradise Quick Stop #16', storeNumber: '#16', screenCount: 2, active: true, brand: 'taqueria' },
     { id: 'PQS17', name: 'Paradise Quick Stop #17', storeNumber: '#17', screenCount: 1, active: true },
     { id: 'PQS18', name: 'Paradise Quick Stop #18', storeNumber: '#18', screenCount: 1, active: true },
-    { id: 'STS',   name: 'Scarborough Travel Stop', storeNumber: '#STS', screenCount: 1, active: true },
+    { id: 'STS',   name: 'Scarborough Travel Stop', storeNumber: '#STS', screenCount: 1, active: true, brand: 'quickstop' },
   ],
 
   menus: {
@@ -376,7 +376,7 @@ window.SEED_DATA = {
         // Pad with empty screens up to screenCount.
         while (screens.length < (st.screenCount || 1)) screens.push({ id: uid(), title: "Screen " + (screens.length + 1), note: "", categories: [] });
       }
-      locs[st.id] = { name: st.name, storeNumber: st.storeNumber, active: st.active !== false, screenCount: Math.max(st.screenCount || 1, screens.length), screens, hasMenu: !!menu };
+      locs[st.id] = { name: st.name, storeNumber: st.storeNumber, active: st.active !== false, brand: st.brand || "deli", screenCount: Math.max(st.screenCount || 1, screens.length), screens, hasMenu: !!menu };
     }
 
     log(`Catalog items: ${Object.keys(catalog).length}`);
@@ -401,15 +401,15 @@ window.SEED_DATA = {
         const cur = await getDoc(ref);
         if (cur.exists()) {
           // Keep whatever screens admins built; just sync the active flag.
-          await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, updatedAt: serverTimestamp() }, { merge: true });
+          await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, brand: l.brand || "deli", updatedAt: serverTimestamp() }, { merge: true });
           log(`  ${id}: exists, screens left alone, active=${l.active}`); continue;
         }
         // Active stores without a transcribed menu get empty screens to fill in; inactive ones get none.
         const screens = l.active ? Array.from({ length: l.screenCount }, (_, i) => ({ id: uid(), title: "Screen " + (i + 1), note: "", categories: [] })) : [];
-        await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, screenCount: screens.length, screens, updatedAt: serverTimestamp() });
+        await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, brand: l.brand, screenCount: screens.length, screens, updatedAt: serverTimestamp() });
         log(`  ${id}: created ${l.active ? "empty (" + screens.length + " screen(s))" : "inactive (hidden from picker)"}`);
       } else {
-        await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, screenCount: l.screenCount, screens: l.screens, updatedAt: serverTimestamp(), seededBy: auth.currentUser.email }, { merge: true });
+        await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, brand: l.brand, screenCount: l.screenCount, screens: l.screens, updatedAt: serverTimestamp(), seededBy: auth.currentUser.email }, { merge: true });
         log(`  ${id}: wrote ${l.screens.length} screen(s)`);
       }
     }
