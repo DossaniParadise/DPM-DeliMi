@@ -57,6 +57,14 @@
   .item .desc { display: block; font-weight: 400; color: var(--ink-dim); font-size: .78em; line-height: 1.25; }
   .screen-note { text-align: center; color: var(--orange); font-weight: 700; font-size: calc(var(--fs) * 1.05); margin-top: 1vh; }
 
+  /* Floating images placed by the admin "Images" editor. x/y/w are % of the TV. */
+  .fimg { position: fixed; z-index: 5; pointer-events: none; }
+  .fimg img { display: block; width: 100%; height: auto; border-radius: .8vw; box-shadow: 0 .4vw 1.6vw rgba(0,0,0,.65); }
+  .fimg .plabel { position: absolute; left: -2.2vw; top: 50%; transform: translateY(-50%); width: 6vw; height: 6vw; border-radius: 50%;
+    background: var(--orange); color: #000; border: .25vw solid #fff; box-shadow: 0 .3vw 1vw rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.6vw; text-align: center; line-height: 1; padding: .3vw; }
+  body.edit .fimg { display: none; }
+
   .status { position: fixed; left: 1.6vw; bottom: .5vh; font-size: .75vw; color: #555; }
   .status.offline { color: #b36; }
   .admin-link { position: fixed; right: .6vw; bottom: .5vh; font-size: .8vw; color: #444; text-decoration: none; opacity: .7; }
@@ -151,6 +159,7 @@
   const locId = (params.get("id") || "").trim().toUpperCase();
   const screenNo = Math.max(1, parseInt(params.get("screen") || "1", 10) || 1);
   if (params.get("preview") === "1") document.body.classList.add("preview");
+  if (params.get("edit") === "1") document.body.classList.add("preview", "edit");   // admin image editor draws the images itself
 
   const appEl = $("#app"), statusEl = $("#status");
   let locationDoc = null, catalog = null, lastFromCache = false, gotData = false;
@@ -227,7 +236,9 @@
             <span class="name">${esc(it.name)}${it.description ? `<span class="desc">${esc(it.description)}</span>` : ""}</span>
             <span class="dots"></span><span class="price">${esc(it.price)}</span></div>`).join("")}
         </section>`; }).join("")}
-      </div>${screen.note ? `<div class="screen-note">${esc(screen.note)}</div>` : ""}</div>`;
+      </div>${screen.note ? `<div class="screen-note">${esc(screen.note)}</div>` : ""}</div>
+      ${(screen.images || []).map(im => `<div class="fimg" style="left:${+im.x || 0}%;top:${+im.y || 0}%;width:${+im.w || 15}%">
+        <img src="${esc(im.url)}" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`).join("")}`;
     showStatus(`Updated ${fmtTime()}${lastFromCache ? " · showing offline copy" : ""}`, lastFromCache);
     fitToScreen();
   }
