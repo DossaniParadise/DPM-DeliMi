@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paradise Deli · Seed data</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #111; color: #eee; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+  h1 { color: #F39323; }
+  input, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: #eee; }
+  button { background: #F39323; color: #000; font-weight: 700; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  pre { background: #000; padding: 12px; border-radius: 8px; white-space: pre-wrap; font-size: 13px; max-height: 50vh; overflow: auto; }
+  label { display: block; margin: 10px 0; }
+  .warn { color: #f7b955; }
+</style>
+</head>
+<body>
+  <h1>Seed Paradise Deli menus</h1>
+  <p>One-time (or re-run) import of the transcribed menus into Firestore. Works from GitHub Pages or opened straight from your desktop. Sign in as a <b>super admin</b> first.</p>
+  <p class="warn">Re-running <b>replaces the screens</b> of every store listed in <code>SEED_DATA.menus</code> and upserts catalog items. Stores without a transcribed menu keep whatever screens admins built; only their <code>active</code> flag is synced (inactive stores are hidden from the store picker).</p>
+  <div id="login">
+    <label>Email <input id="email" type="email"></label>
+    <label>Password <input id="password" type="password"></label>
+    <button id="loginBtn">Sign in</button>
+  </div>
+  <div id="run" hidden>
+    <p>Signed in as <b id="who"></b>.</p>
+    <label><input type="checkbox" id="dry" checked> Dry run (print what would be written, write nothing)</label>
+    <button id="go">Run seed</button>
+  </div>
+  <pre id="log"></pre>
+
+<!-- Seed data is inlined below so this page works when opened straight from
+     your desktop (file://) as well as from GitHub Pages. -->
+<script>
+// ============================================================================
+// Paradise Deli — seed data transcribed from "Copy Dania of PQS Deli Menus.pdf"
+// (Sept 2026). Loaded by seed.html. Edit freely; re-running the seed page
+// REPLACES the screens of the stores listed here and upserts catalog items.
+//
+// Shape:
+//   stores[]  → { id, name, shortName, storeNumber, screens[] }
+//   screen    → { title, note?, categories[] }
+//   category  → { name, note?, items[] }
+//   item      → [ name, priceText, description? ]
+//
+// Prices are TEXT on purpose ("$0.99 ea or 5 for $4.79", "2 for $1.99").
+// The seed builds the shared catalog (menuItems) from item names: the first
+// store that mentions a name sets the catalog price; later stores that show a
+// different price get a store-only override.
+// ============================================================================
+window.SEED_DATA = {
+  // Every C-Store. active:false stores exist in Firestore but are hidden from the
+  // store picker until an admin turns them on. screenCount = kiosk windows (?screen=N).
+  allStores: [
+    { id: 'PQS1',  name: 'Paradise Quick Stop #01', storeNumber: '#01', screenCount: 2, active: true },
+    { id: 'PQS2',  name: 'Paradise Quick Stop #02', storeNumber: '#02', screenCount: 1, active: true },
+    { id: 'PQS3',  name: 'Paradise Quick Stop #03', storeNumber: '#03', screenCount: 1, active: false },
+    { id: 'PQS4',  name: 'Paradise Quick Stop #04', storeNumber: '#04', screenCount: 1, active: false },
+    { id: 'PQS5',  name: 'Paradise Quick Stop #05', storeNumber: '#05', screenCount: 2, active: true },
+    { id: 'PQS6',  name: 'Paradise Quick Stop #06', storeNumber: '#06', screenCount: 1, active: false },
+    { id: 'PQS7',  name: 'Paradise Quick Stop #07', storeNumber: '#07', screenCount: 1, active: false },
+    { id: 'PQS8',  name: 'Paradise Quick Stop #08', storeNumber: '#08', screenCount: 3, active: true },
+    { id: 'PQS9',  name: 'Paradise Quick Stop #09', storeNumber: '#09', screenCount: 1, active: false },
+    { id: 'PQS10', name: 'Paradise Quick Stop #10', storeNumber: '#10', screenCount: 1, active: false },
+    { id: 'PQS11', name: 'Paradise Quick Stop #11', storeNumber: '#11', screenCount: 1, active: false },
+    { id: 'PQS12', name: 'Paradise Quick Stop #12', storeNumber: '#12', screenCount: 3, active: true },
+    { id: 'PQS13', name: 'Paradise Quick Stop #13', storeNumber: '#13', screenCount: 1, active: false },
+    { id: 'PQS14', name: 'Paradise Quick Stop #14', storeNumber: '#14', screenCount: 1, active: false },
+    { id: 'PQS15', name: 'Paradise Quick Stop #15', storeNumber: '#15', screenCount: 1, active: true },
+    { id: 'PQS16', name: 'Paradise Quick Stop #16', storeNumber: '#16', screenCount: 2, active: true },
+    { id: 'PQS17', name: 'Paradise Quick Stop #17', storeNumber: '#17', screenCount: 1, active: true },
+    { id: 'PQS18', name: 'Paradise Quick Stop #18', storeNumber: '#18', screenCount: 1, active: true },
+    { id: 'STS',   name: 'Scarborough Travel Stop', storeNumber: '#STS', screenCount: 1, active: true },
+  ],
+
+  menus: {
+    // ------------------------------------------------------------------ PQS 1
+    PQS1: [
+      { title: 'Appetizers and Snacks', categories: [
+        { name: 'Appetizers and Snacks', items: [
+          ['Crispito', '$1.99'], ['Corn Dog', '$1.99'], ['Meat Pie', '$2.99'],
+          ['Chicken Strips', '$1.39'], ['Beef & Bean Burrito', '$1.99'],
+          ['Gorditas/Sopes', '$3.99'], ['Breakfast Burrito', '$8.99'],
+          ['Single Taco', '$2.29'], ['Chicken Wings', '$1.39'], ['Quesadilla', '$8.99'],
+          ['Tamales', '$2.99'], ['Jalapeno Popper', '$1.19'], ['Breakfast Bacon Bar', '$2.79'],
+          ['Hashbrown', '$1.29'], ['Chicken/Steak Sandwich', '$4.99'],
+          ['Cheese Burger Basket', '$7.99'], ['Double Cheese Burger Basket', '$8.99'],
+          ['Single Cheese Burger', '$4.59'], ['Double Cheese Burger', '$5.99'],
+          ['Single Bacon Cheese Burger', '$4.99'], ['Torta', '$7.99'], ['Meat Burrito', '$6.99'],
+          ['Grilled Jalapeno (Toriado)', '$0.89'], ['Breakfast Sandwich', '$5.49'],
+          ['Mozzarella Sticks', '$0.89'], ['Beef Hot Dog', '$1.99'],
+          ['Mini Chicken Sausage', '$0.99'], ['Add Bacon on Sandwich', '$1.00'],
+        ]},
+      ]},
+      { title: 'Mexican Entrees', categories: [
+        { name: 'Tortas', note: 'With lettuce, tomatoes, onions, and jalapenos', items: [
+          ['Torta', '$7.99', 'Pork & Egg (Chorizo con Huevo), Ham (Jamón), or Meat (Carne)'],
+        ]},
+        { name: 'Red Chilaquiles', items: [
+          ['Red Chilaquiles', '$7.99', 'Fried tortilla chips simmered in red sauce with 2 eggs & cheese on top (Pedazos de tortilla en salsa roja con 2 huevos y queso arriba)'],
+        ]},
+        { name: 'Gorditas', items: [
+          ['Pork Skin & Potatoes in Green or Red Sauce', '$3.99', 'Chicharrón con papas en salsa verde o roja'],
+          ['Cactus Pork & Egg With Spice', '$3.99', 'Nopales, chorizo y huevos con chile'],
+          ['Egg in Red Sauce', '$3.99', 'Huevos en salsa roja'],
+          ['Cactus & Beans With Pico de Gallo', '$3.99', 'Nopales y frijoles con pico de gallo'],
+        ]},
+        { name: 'Everyday Specials', items: [
+          ['Monday', 'Tortas'], ['Tuesday', 'Gorditas'], ['Wednesday', 'Enchiladas'],
+          ['Thursday', 'Sopes'], ['Friday', 'Gorditas'], ['Saturday', 'Hamburgers & Tacos'],
+          ['Sunday', 'Sorry, Closed!'],
+        ]},
+      ]},
+    ],
+
+    // ------------------------------------------------------------------ PQS 2
+    PQS2: [
+      { title: 'Entrees', categories: [
+        { name: 'Entrees', items: [
+          ['Small Burrito (Beef & Bean)', '$1.85', 'Carne y frijoles'],
+          ['Big Burrito (Beef & Bean)', '$3.69', 'Carne y frijoles'],
+          ['Corn Dog', '$1.85', 'Perro de maíz'],
+          ['Crispito (Chicken & Cheese)', '$1.85', 'Pollo y queso'],
+        ]},
+      ]},
+    ],
+
+    // ------------------------------------------------------------------ PQS 5
+    PQS5: [
+      { title: 'Meals, Chicken & Sides', categories: [
+        { name: 'Meal Combos', items: [
+          ['Burger Combo (Burger, Fries, Drink)', '$10.99'],
+          ['Cheeseburger Fries & Drink Combo', '$11.99'],
+          ['3 Piece Chicken Strip Dinner', '$10.99'],
+          ['3 Piece Fish Dinner', '$9.99'],
+        ]},
+        { name: 'Chicken', items: [
+          ['Breast', '$3.99'], ['Thigh', '$1.99'], ['Leg', '$1.99'], ['Wing', '$1.99'],
+          ['Hot Wings', '$.89 or 3/$2.49'],
+        ]},
+        { name: 'Sandwiches', items: [
+          ['BBQ Sandwich', '$4.49'], ['Spicy Chicken Sandwich', '$3.49'], ['Chicken Sandwich', '$3.49'],
+        ]},
+        { name: 'Sides', items: [
+          ['Fried Okra', '$2.79'], ['Corn Nuggets', '$2.29'], ['Potato Babies', '$2.49'],
+          ['Jalapeno Poppers', '$1.59 or 4/$5.29'], ['Cajun Fries', '$1.99'],
+          ['Potato Logs', '$0.79 or 4/$2.39'], ['Fried Corn', '$1.29'],
+        ]},
+        { name: 'Salads', items: [
+          ['Half Chefs Salad', '$6.99'], ['Whole Chefs Salad', '$9.99'],
+        ]},
+      ]},
+      { title: 'Appetizers & Breakfast', categories: [
+        { name: 'Appetizers and Snacks', items: [] },
+        { name: 'Breakfast', items: [] },
+      ]},
+    ],
+
+    // ------------------------------------------------------------------ PQS 8
+    PQS8: [
+      { title: 'Breakfast', categories: [
+        { name: 'Breakfast', items: [
+          ['Plain Biscuit', '$0.99'], ['Tornados', '$2.69'], ['Bacon (2 Strips)', '$3.09'],
+          ['Cheese', '$0.30'], ['Bacon Biscuit (Biscuit with 2pc Bacon)', '$2.99'],
+          ['Bacon Egg Biscuit', '$3.19'], ['Bacon Egg & Cheese Biscuit', '$3.49'],
+          ['Breakfast Kolache', '$2.79'], ['Egg Patty', '$0.99'], ['Sausage Patty', '$1.09'],
+          ['Sausage Biscuit', '$2.79'], ['Sausage Egg Biscuit', '$3.19'],
+          ['Sausage Egg & Cheese Biscuit', '$3.49'], ['The Works Biscuit', '$5.39'],
+          ['Biscuit & Gravy', '$2.99'], ['Stuffed Waffle', '$4.29'], ['Breakfast Burrito', '$3.99'],
+        ]},
+      ]},
+      { title: 'Lunch & Dinner', categories: [
+        { name: 'Lunch', items: [
+          ['Cajun Meat Pie', '$3.49'], ['BBQ Sandwich', '$5.99'], ['Beef and Bean Burrito', '$2.99'],
+          ['Boudin', '$4.09'], ['Boudin Ball', '$1.39'], ['Hamburger', '$5.49'],
+          ['Cheese Burger', '$4.99'], ['Pork Chop', '$3.39'], ['Corn Dog', '$2.19'],
+          ['Crispito', '$2.19'], ['Egg Roll', '$2.39'], ['Sausage On Stick', '$3.59'],
+          ['Mozzarella Cheese Sticks (5)', '$4.99'], ['Chicken Nuggets (10 Count)', '$4.99'],
+          ['Boudin Balls (3)', '$3.69'], ['Chicken Tenders (Each)', '$1.99'],
+          ['Chicken Leg', '$1.99'], ['Chicken Wing (Each)', '$1.99'], ['Corn Rib Appetizer (3)', '$3.29'],
+        ]},
+        { name: 'Dinner', note: 'All meals come with 20 oz drink and 1 side', items: [
+          ['2pc Chicken Strip Dinner', '$7.99'], ['3pc Chicken Strip Dinner', '$9.99'],
+          ['4pc Chicken Strip Dinner', '$11.99'], ['2pc Chicken Meal Dinner', '$7.99'],
+          ['3pc Chicken Meal Dinner', '$9.99'], ['4pc Chicken Meal Dinner', '$11.99'],
+        ]},
+        { name: 'Sides', items: [
+          ['Onion Rings (6)', '$2.59'], ['Potato Wedges', '$1.99'], ['Okra', '$1.99'], ['Fried Pickles', '$1.99'],
+        ]},
+      ]},
+      { title: 'Hunt Brothers Pizza', categories: [
+        { name: 'Hunt Brothers Pizza', items: [
+          ['Large Pizza', '$11.99'], ['Slice of Pizza (Hunk)', '$3.49'],
+          ['Extra Toppings', '$2.19'], ['Extra Cheese', '$2.19'],
+          ['Single Order of Wings (5)', '$4.99'], ['Double Order of Wings (10)', '$9.99'],
+        ]},
+      ]},
+    ],
+
+    // ----------------------------------------------------------------- PQS 15
+    PQS15: [
+      { title: 'Full Menu', categories: [
+        { name: 'Breakfast', items: [
+          ['Sausage Egg Cheese Biscuit', '$3.99'], ['Sausage Biscuit', '$2.09'],
+          ['Sausage Cheese Biscuit', '$3.29'], ['Breakfast Burrito', '$3.99'],
+        ]},
+        { name: 'Chicken', items: [
+          ['Chicken Tenders', '$2.29'], ['Chicken Wing', '$1.79'], ['Chicken Thigh', '$1.89'],
+          ['Chicken Leg', '$1.99'], ['4pc Chicken Tenders', '$11.99'], ['8pc Chicken Tenders', '$19.99'],
+        ]},
+        { name: 'Fish', items: [
+          ['Fish By the Piece', '$3.29'], ['3pc Fish Dinner', '$10.59'],
+        ]},
+        { name: 'Lunch', items: [
+          ['Crispito', '$1.99'], ['Fried Burrito', '$1.89'], ['Corn Dog', '$1.99'],
+          ['Corn Dog W/ Cheese Jalapeno', '$1.99'], ['Egg Roll', '$1.59'], ['Tornados', '$2.49'],
+          ['Jalapenos', '$0.79'], ['Tamales', '$3.59'], ['Sausage on Stick', '$3.99'],
+          ['Meat Pie', '$3.19'], ['Potato Wedges', '$1.99'], ['Hot Wings', '$1.29'],
+          ['Jalapeno Poppers', '$0.99'], ['5 Poppers', '$4.99'], ['Pizza Stick', '$3.29'],
+          ['Cheese Stick', '$4.89'], ['Boudin Balls', '$1.59'],
+        ]},
+        { name: 'Burgers', items: [
+          ['Cheeseburger', '$8.49'], ['Hamburger', '$7.49'],
+        ]},
+      ]},
+    ],
+
+    // ----------------------------------------------------------------- PQS 16
+    PQS16: [
+      { title: 'Tacos & Quesadillas', categories: [
+        { name: 'Tacos', note: 'Served on corn or flour tortillas with fresh onions, cilantro, limes & salsa. Carne Asada (Beef), Pollo (Chicken), or Pastor (Pork).', items: [
+          ['3 Tacos', '$5.99'], ['Taco Plate with 3 Tacos, Beans & Rice', '$10.99'],
+          ['Tortas', '$10.99'], ['Sopas', '$10.99'], ['Breakfast Burritos', '$3.99'],
+          ['7" Pizza (Cheese, Pepperoni, Supreme)', '$5.49'], ['Add Cheese', '$1.00'],
+          ['Extra Sauces or Lime', '$0.50 ea'],
+        ]},
+        { name: 'Quesadilla', note: 'Comes with choice of meat: Carne Asada (Beef), Pollo (Chicken), Pastor (Pork), cilantro & onions', items: [
+          ['Half Order', '$5.99'], ['Full Order', '$9.99'],
+        ]},
+        { name: 'Sides', items: [
+          ['French Fries', '$1.99'], ['Hot Wings', '$1.79 ea'], ['Crispitos (Chicken & Cheese)', '$1.59'],
+          ['Fried Burritos (Beef & Bean)', '$1.59'], ['Corn Dogs', '$1.59'],
+          ['Jalapeno Poppers', '$0.99 ea or 5 for $4.79'], ['Mozzarella Sticks', '$0.99 ea or 5 for $4.79'],
+          ['Tamales', '2 for $1.99'], ['Chicken Tender', '$1.99'], ['Sausage on a Stick', '$3.29'],
+          ['Egg Roll', '$1.99'],
+        ]},
+      ]},
+      { title: 'Appetizers & Drinks', categories: [
+        { name: 'Appetizers and Snacks', note: 'Available from 10 AM – 4 PM Monday – Friday', items: [
+          ['Breakfast Burritos', '$11.99'], ['Sausage Egg Cheese Biscuit', '$3.99'],
+          ['Sausage Cheese Biscuit', '$3.59'], ['Sausage Egg Biscuit', '$3.59'], ['Sausage Biscuit', '$2.59'],
+          ['Bacon Egg Cheese Biscuit', '$3.99'], ['Bacon Cheese Biscuit', '$3.59'],
+          ['Bacon Egg Biscuit', '$3.59'], ['Bacon Biscuit', '$2.59'],
+          ['7" Pizza (Cheese, Pepperoni, Supreme)', '$12.99'], ['Add Cheese', '$1.00'],
+          ['Extra Sauces or Lime', '$0.50 ea'], ['CFS Combo', '$8.99'], ['Breakfast Combo', '$7.99'],
+          ['Catfish Combo', '$9.99'], ['Fish', '$2.99'], ['French Fries', '$1.99'],
+          ['Crispitos (Chicken & Cheese)', '$1.99'], ['Fried Burritos (Beef & Bean)', '$1.99'],
+          ['Corn Dogs', '$1.99'], ['Jalapeno Poppers', '$0.99 ea or 5 for $4.79'],
+          ['Mozzarella Sticks', '$0.99 ea or 5 for $4.79'], ['Tamales', '2 for $1.99'],
+          ['Chicken Tender', '$2.39'], ['Sausage on a Stick', '$3.39'], ['Egg Roll', '$1.99'],
+          ['Chimichanga', '$1.99'], ['Meat Pie', '$2.69'], ['Pizza Sticks', '$1.69'],
+          ['Hashbrowns', '$0.89'], ['Hot Wings', '$1.29 ea'], ['Chicken Thigh', '$1.89'],
+          ['Chicken Wing', '$1.79'], ['Chicken Leg', '$1.99'], ['Chicken Breast', '$3.79'],
+          ['Hamburger', '$7.49'], ['Cheese Burger', '$8.49'],
+        ]},
+        { name: 'Fountain Drinks', items: [
+          ['20 oz', '$1.59'], ['32 oz', '$1.89'], ['44 oz', '$2.19'],
+        ]},
+        { name: 'Coffee & Cappuccino', items: [
+          ['12 oz Coffee', '$1.59'], ['16 oz Coffee', '$1.89'], ['20 oz Coffee', '$2.29'],
+        ]},
+      ]},
+    ],
+
+    // -------------------------------------------------------------------- STS
+    STS: [
+      { title: 'Coffee', categories: [
+        { name: 'Coffee & Cappuccino', items: [
+          ['12 oz Coffee', '$1.99'], ['16 oz Coffee', '$2.49'], ['20 oz Coffee', '$2.79'],
+        ]},
+        { name: 'Cold Brew', items: [
+          ['16 oz Cold Brew', '$3.29'],
+        ]},
+      ]},
+    ],
+  },
+};
+</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+  import { getFirestore, doc, getDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDkOgww069J3JxBmV8j-EUyl88goy5QtOY",
+    authDomain: "dpm-menu-manager.firebaseapp.com",
+    projectId: "dpm-menu-manager",
+    storageBucket: "dpm-menu-manager.firebasestorage.app",
+    messagingSenderId: "246192582837",
+    appId: "1:246192582837:web:a3101bfc960d8cd8f00efc",
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  const $ = (s, r = document) => r.querySelector(s);
+  function uid(len = 8) {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789"; let s = "";
+    const arr = new Uint8Array(len); crypto.getRandomValues(arr);
+    for (const b of arr) s += chars[b % chars.length]; return s;
+  }
+  // Stable catalog id from an item name: "Corn Dog W/ Cheese" -> "corn-dog-w-cheese"
+  function slug(name) {
+    return String(name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || uid();
+  }
+  window.addEventListener("error", e => log("Page error: " + e.message));
+  window.addEventListener("unhandledrejection", e => log("Error: " + (e.reason?.code || e.reason?.message || e.reason)));
+
+  const log = m => { $("#log").textContent += m + "\n"; };
+  $("#loginBtn").onclick = async () => {
+    log("Signing in…");
+    try { await signInWithEmailAndPassword(auth, $("#email").value.trim(), $("#password").value); }
+    catch (e) { log("Login failed: " + e.code + (e.code === "auth/invalid-credential" ? " (wrong email/password, or Email/Password sign-in not enabled in Firebase → Authentication)" : "")); }
+  };
+  onAuthStateChanged(auth, async user => {
+    if (!user) return;
+    log("Signed in as " + user.email + " (uid " + user.uid + "). Checking admins/" + user.uid + "…");
+    let a;
+    try { a = await getDoc(doc(db, "admins", user.uid)); }
+    catch (e) { log("Could not read admins/" + user.uid + ": " + e.code + " — are the firestore.rules published?"); return; }
+    if (!a.exists() || a.data().role !== "super") { log(`${user.email} is not a super admin: create Firestore doc admins/${user.uid} with fields email + role: "super".`); return; }
+    $("#login").hidden = true; $("#run").hidden = false; $("#who").textContent = user.email;
+  });
+
+  $("#go").onclick = async () => {
+    $("#go").disabled = true;
+    const dry = $("#dry").checked;
+    const D = window.SEED_DATA;
+    const catalog = {};   // id -> {name, price, description}
+    const locs = {};
+
+    // Build catalog + location docs from the seed.
+    for (const st of D.allStores) {
+      const menu = D.menus[st.id];
+      const screens = [];
+      if (menu) {
+        for (const sc of menu) {
+          const categories = [];
+          for (const cat of sc.categories) {
+            const items = [];
+            for (const [name, price, description] of cat.items) {
+              const id = slug(name);
+              if (!catalog[id]) {
+                catalog[id] = { name, price: price || "", description: description || "", photoUrl: "" };
+                items.push({ id: uid(), itemId: id });
+              } else {
+                const e = { id: uid(), itemId: id };
+                if ((price || "") !== catalog[id].price) e.price = price || "";
+                if (description && description !== catalog[id].description) e.description = description;
+                items.push(e);
+              }
+            }
+            categories.push({ id: uid(), name: cat.name, note: cat.note || "", items });
+          }
+          screens.push({ id: uid(), title: sc.title, note: sc.note || "", categories });
+        }
+        // Pad with empty screens up to screenCount.
+        while (screens.length < (st.screenCount || 1)) screens.push({ id: uid(), title: "Screen " + (screens.length + 1), note: "", categories: [] });
+      }
+      locs[st.id] = { name: st.name, storeNumber: st.storeNumber, active: st.active !== false, screenCount: Math.max(st.screenCount || 1, screens.length), screens, hasMenu: !!menu };
+    }
+
+    log(`Catalog items: ${Object.keys(catalog).length}`);
+    log(`Stores: ${Object.keys(locs).length} (${Object.values(locs).filter(l => l.hasMenu).length} with menus)`);
+    if (dry) {
+      for (const [id, l] of Object.entries(locs)) log(`  ${id}: ${l.screens.length} screen(s), ${l.screens.reduce((a, s) => a + s.categories.reduce((b, c) => b + c.items.length, 0), 0)} items`);
+      log("\nDry run only — untick to write."); $("#go").disabled = false; return;
+    }
+
+    // Firestore batches max 500 ops; we're well under, but chunk anyway.
+    let batch = writeBatch(db), n = 0;
+    const flush = async () => { await batch.commit(); batch = writeBatch(db); n = 0; };
+    const add = async (ref, data, opts) => { batch.set(ref, data, opts); if (++n >= 400) await flush(); };
+
+    for (const [id, it] of Object.entries(catalog)) {
+      // Upsert but never clobber a photo/description someone added by hand.
+      await add(doc(db, "menuItems", id), { name: it.name, price: it.price, description: it.description, updatedAt: serverTimestamp(), seededBy: auth.currentUser.email }, { merge: true });
+    }
+    for (const [id, l] of Object.entries(locs)) {
+      const ref = doc(db, "locations", id);
+      if (!l.hasMenu) {
+        const cur = await getDoc(ref);
+        if (cur.exists()) {
+          // Keep whatever screens admins built; just sync the active flag.
+          await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, updatedAt: serverTimestamp() }, { merge: true });
+          log(`  ${id}: exists, screens left alone, active=${l.active}`); continue;
+        }
+        // Active stores without a transcribed menu get empty screens to fill in; inactive ones get none.
+        const screens = l.active ? Array.from({ length: l.screenCount }, (_, i) => ({ id: uid(), title: "Screen " + (i + 1), note: "", categories: [] })) : [];
+        await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, screenCount: screens.length, screens, updatedAt: serverTimestamp() });
+        log(`  ${id}: created ${l.active ? "empty (" + screens.length + " screen(s))" : "inactive (hidden from picker)"}`);
+      } else {
+        await add(ref, { name: l.name, storeNumber: l.storeNumber, active: l.active, screenCount: l.screenCount, screens: l.screens, updatedAt: serverTimestamp(), seededBy: auth.currentUser.email }, { merge: true });
+        log(`  ${id}: wrote ${l.screens.length} screen(s)`);
+      }
+    }
+    await flush();
+    log("\nDone. Open index.html?id=PQS8&screen=2 to check.");
+    $("#go").disabled = false;
+  };
+</script>
+</body>
+</html>
