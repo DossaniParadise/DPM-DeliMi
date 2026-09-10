@@ -12,8 +12,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <style>
   /* ======================================================================
-     Paradise Deli — menu editor. Draws the menu like the TV does; tap anything
-     to change it. Self-contained (no other files needed).
+     Paradise Deli — menu editor (self-contained).
+     Computer (≥ 900px wide): the TV itself is the workspace — drag sections,
+       photos and text around, resize, align, change text size; a side panel
+       edits whatever is selected.
+     Phone: a simple list of sections, products and prices.
      ====================================================================== */
   :root {
     --orange: #F39323; --bg: #0b0b0c; --card: #1b1b1e; --card2: #26262b; --line: #34343a;
@@ -21,86 +24,102 @@
     --font: 'Poppins', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; height: 100%; }
   button, input, select, textarea { font: inherit; }
   button { cursor: pointer; }
   .hidden { display: none !important; }
-  .btn { border: 1px solid var(--line); background: var(--card2); color: var(--ink); border-radius: 10px; padding: 9px 14px; font-weight: 600; }
+  .btn { border: 1px solid var(--line); background: var(--card2); color: var(--ink); border-radius: 10px; padding: 8px 13px; font-weight: 600; white-space: nowrap; }
   .btn.primary { background: var(--orange); border-color: var(--orange); color: #000; }
   .btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
   .btn.small { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
   .btn:disabled { opacity: .5; cursor: default; }
   .info { color: var(--dim); font-size: 13px; }
   .err { color: var(--red); font-size: 14px; margin: 8px 0; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; vertical-align: middle; }
+  .seg button { background: var(--card2); color: var(--ink); border: 0; padding: 6px 10px; font-weight: 700; font-size: 13px; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--orange); color: #000; }
+  .field { display: block; margin-bottom: 10px; }
+  .field > span { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+  .field input, .field textarea { width: 100%; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 10px 12px; font-size: 15px; }
+  .field input:focus, .field textarea:focus { outline: 2px solid var(--orange); border-color: transparent; }
+  .switch { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+  .switch input { width: 20px; height: 20px; }
 
   /* ---- top bar ---- */
   .top { position: sticky; top: 0; z-index: 20; background: #000; border-bottom: 1px solid var(--line); }
   .top .row1 { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
   .top .row1 img { height: 26px; }
-  .top select { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 9px 10px; font-weight: 600; }
+  .top select { flex: 1; min-width: 0; max-width: 360px; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 8px 10px; font-weight: 600; }
   .top .row2 { display: flex; align-items: center; gap: 6px; padding: 0 10px 8px; overflow-x: auto; scrollbar-width: none; }
   .top .row2::-webkit-scrollbar { display: none; }
   .chip { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--dim); border-radius: 999px; padding: 6px 13px; font-weight: 600; font-size: 14px; white-space: nowrap; }
   .chip.active { background: var(--orange); border-color: var(--orange); color: #000; }
   .chip.ghost { border-style: dashed; }
-  .top .spacer { flex: 1; }
+  .spacer { flex: 1; }
 
   /* ---- login / messages ---- */
   .login { max-width: 380px; margin: 10vh auto; padding: 0 20px; }
   .login h1 { text-align: center; font-size: 20px; margin: 0 0 20px; }
-  .field { display: block; margin-bottom: 12px; }
-  .field > span { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
-  .field input, .field textarea { width: 100%; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 12px; font-size: 16px; }
-  .field input:focus { outline: 2px solid var(--orange); border-color: transparent; }
 
-  /* ---- the board: same look as the TV ---- */
-  .stage { padding: 10px 10px 120px; max-width: 1100px; margin: 0 auto; }
-  .board { --u: 1px; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid #222; position: relative; }
-  .hdr { height: calc(var(--u) * 150); display: flex; align-items: center; justify-content: center; position: relative;
-    background: linear-gradient(180deg, #a9dcf3 0%, #bfe6f7 60%, #dff3fb 100%); }
-  .hdr img { height: 70%; max-width: 60%; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,.35)); }
-  .hdr .textlogo { display: none; font-weight: 800; font-size: calc(var(--u) * 54); color: var(--orange); letter-spacing: .06em; -webkit-text-stroke: .04em #1a1a1a; text-shadow: 0 .08em 0 #1a1a1a; text-align: center; line-height: 1; }
-  .hdr .textlogo small { display: block; font-size: .4em; letter-spacing: .3em; }
-  .hdr.nologo img { display: none; } .hdr.nologo .textlogo { display: block; }
-  .hdr .store { position: absolute; right: calc(var(--u) * 20); bottom: calc(var(--u) * 8); font-size: calc(var(--u) * 15); font-weight: 600; color: #1b3a4b; background: rgba(255,255,255,.65); padding: .2em .7em; border-radius: 999px; }
-  .body { position: relative; padding: calc(var(--u) * 18) calc(var(--u) * 28) calc(var(--u) * 18) calc(var(--u) * 34); }
-  .body::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--u) * 14); background: var(--orange); }
-  .menu { display: grid; grid-template-columns: 1fr; gap: 0 calc(var(--u) * 40); }
-  .board.wide .menu { grid-template-columns: 1fr 1fr; }
-  .cat { margin-bottom: calc(var(--u) * 22); break-inside: avoid; }
-  .cat h2 { margin: 0; text-align: center; color: var(--orange); text-transform: uppercase; letter-spacing: .12em; font-weight: 800;
-    font-size: calc(var(--u) * 30); line-height: 1.15; border-bottom: calc(var(--u) * 4) solid var(--orange); padding: .1em .3em .12em; border-radius: 4px 4px 0 0; }
-  .cat .note { font-style: italic; color: #cfcfcf; font-size: calc(var(--u) * 16); margin: .3em 0 .4em; text-align: center; padding: 0 .3em; }
-  .item { display: flex; align-items: baseline; gap: .6em; font-size: calc(var(--u) * 21); line-height: 1.35; padding: .18em .3em; border-radius: 6px; }
-  .item .name { flex: 1 1 auto; font-weight: 500; }
-  .item .dots { flex: 1 1 auto; border-bottom: 2px dotted #444; transform: translateY(-.35em); min-width: 1em; }
-  .item .price { flex: 0 0 auto; font-weight: 700; white-space: nowrap; letter-spacing: .04em; }
-  .item .desc { display: block; font-weight: 400; color: #cfcfcf; font-size: .78em; line-height: 1.25; }
-  .item.is-hidden { opacity: .35; }
-  .item.is-hidden .name::before { content: "🚫 "; }
-  .item .ovr { font-size: .55em; color: var(--orange); vertical-align: middle; margin-left: .5em; font-weight: 700; }
-  .screen-note { text-align: center; color: var(--orange); font-weight: 700; font-size: calc(var(--u) * 22); padding: .4em; border-radius: 6px; }
-  /* tap affordances */
-  .tap { cursor: pointer; }
-  .tap:hover, .tap:active { background: rgba(243,147,35,.16); }
-  .cat h2.tap:hover, .cat h2.tap:active { background: rgba(243,147,35,.25); }
-  .ghostline { color: #666; font-size: calc(var(--u) * 17); font-style: italic; padding: .3em .4em; border: 1px dashed #333; border-radius: 6px; margin-top: .3em; cursor: pointer; }
-  .ghostline:hover, .ghostline:active { color: var(--orange); border-color: var(--orange); }
-  .ghostcat { text-align: center; color: #666; border: 1px dashed #333; border-radius: 8px; padding: .6em; font-size: calc(var(--u) * 20); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; margin-top: calc(var(--u) * 10); }
-  .ghostcat:hover, .ghostcat:active { color: var(--orange); border-color: var(--orange); }
-  .sortable-ghost { opacity: .3; } .sortable-chosen { background: rgba(243,147,35,.25); }
-  .photos { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-top: 1px dashed #333; align-items: center; }
-  .photos img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 2px solid #333; cursor: pointer; }
-  .photos .lbl { font-size: 12px; color: var(--dim); width: 100%; }
+  /* ================= DESKTOP: canvas + side panel ================= */
+  .desk { display: flex; height: calc(100vh - 96px); }
+  .desk .canvas-wrap { flex: 1; min-width: 0; position: relative; background: #000; }
+  .desk .tools { display: flex; gap: 6px; align-items: center; padding: 8px 10px; background: #111; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .desk .tools input[type=file] { display: none; }
+  .tv-box { position: absolute; left: 0; right: 0; top: 46px; bottom: 0; overflow: hidden; }
+  .tv-box iframe, .lay { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0; transform-origin: top left; background: transparent; }
+  .lay .box { position: absolute; touch-action: none; cursor: move; outline: 3px dashed rgba(243,147,35,.5); outline-offset: 5px; }
+  .lay .box:hover { outline-color: rgba(243,147,35,.9); }
+  .lay .box.sel { outline: 4px solid var(--orange); }
+  .lay .box.txt { background: rgba(243,147,35,.04); }
+  .lay .box.txt.sel { background: rgba(243,147,35,.1); }
+  .lay .box img { display: block; width: 100%; height: auto; border-radius: 15px; pointer-events: none; user-select: none; box-shadow: 0 8px 30px rgba(0,0,0,.65); }
+  .lay .box .plabel { position: absolute; left: -42px; top: 50%; transform: translateY(-50%); width: 115px; height: 115px; border-radius: 50%; background: var(--orange); color: #000; border: 5px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 31px; pointer-events: none; text-align: center; line-height: 1; }
+  .lay .box .rs { position: absolute; right: -26px; bottom: -26px; width: 56px; height: 56px; border-radius: 50%; background: var(--orange); border: 4px solid #000; cursor: nwse-resize; touch-action: none; }
+  .lay .box .rs::after { content: "⤡"; color: #000; font-size: 30px; font-weight: 700; display: flex; align-items: center; justify-content: center; height: 100%; }
+  .lay .box .tag { position: absolute; left: 0; top: -36px; background: var(--orange); color: #000; font-weight: 700; font-size: 22px; padding: 2px 12px; border-radius: 8px; pointer-events: none; text-transform: uppercase; letter-spacing: .05em; opacity: 0; }
+  .lay .box:hover .tag, .lay .box.sel .tag { opacity: 1; }
+  .panel { width: 340px; flex: 0 0 340px; border-left: 1px solid var(--line); background: #141416; overflow-y: auto; padding: 14px; }
+  .panel h3 { margin: 0 0 10px; font-size: 16px; }
+  .panel h3 small { color: var(--dim); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .panel .rowbtns { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; align-items: center; }
+  .panel .list { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 8px; }
+  .panel .list .it { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .panel .list .it:last-child { border-bottom: 0; }
+  .panel .list .it:hover { background: var(--card2); }
+  .panel .list .it .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panel .list .it .n small { display: block; color: var(--dim); font-size: 11px; }
+  .panel .list .it .p { font-weight: 700; white-space: nowrap; }
+  .panel .list .it.is-hidden .n { opacity: .45; text-decoration: line-through; }
+  .panel .list .it .h { width: 16px; color: var(--dim); cursor: grab; }
+  .panel .ovr { font-size: 10px; color: var(--orange); font-weight: 700; margin-left: 4px; }
+  .panel .hint { color: var(--dim); font-size: 13px; line-height: 1.5; }
+  .panel .hint b { color: var(--ink); }
+  .panel .secs { margin-top: 12px; }
+  .sortable-ghost { opacity: .3; } .sortable-chosen { background: rgba(243,147,35,.2); }
+
+  /* ================= PHONE: list editor ================= */
+  .stage { padding: 10px 10px 110px; max-width: 760px; margin: 0 auto; }
+  .m-sec { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .m-sec .mh { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--card2); }
+  .m-sec .mh .t { flex: 1; color: var(--orange); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+  .m-sec .mh .t small { display: block; color: var(--dim); font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 12px; }
+  .m-sec .mi { display: flex; align-items: center; gap: 10px; padding: 12px; border-top: 1px solid var(--line); font-size: 16px; }
+  .m-sec .mi .n { flex: 1; min-width: 0; }
+  .m-sec .mi .n small { display: block; color: var(--dim); font-size: 12px; }
+  .m-sec .mi .p { font-weight: 700; white-space: nowrap; }
+  .m-sec .mi.is-hidden .n { opacity: .45; text-decoration: line-through; }
+  .m-sec .mi .h { color: var(--dim); cursor: grab; touch-action: none; padding: 4px; }
+  .m-sec .add { padding: 10px 12px; border-top: 1px dashed var(--line); color: var(--orange); font-weight: 600; cursor: pointer; }
+  .m-note { padding: 12px; color: var(--orange); font-weight: 600; text-align: center; border: 1px dashed #333; border-radius: 12px; margin-bottom: 12px; }
   .empty { text-align: center; color: var(--dim); padding: 40px 16px; }
-
-  /* ---- bottom action bar ---- */
   .actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: rgba(0,0,0,.92); border-top: 1px solid var(--line); overflow-x: auto; }
-  .actions .btn { flex: 0 0 auto; white-space: nowrap; }
 
-  /* ---- sheets ---- */
+  /* ---- sheets (phone: bottom; desktop: centered) ---- */
   .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
   .sheet { width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; background: var(--card); border-radius: 18px 18px 0 0; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 3px solid var(--orange); }
+  @media (min-width: 900px) { .sheet-bg { align-items: center; } .sheet { border-radius: 18px; padding-bottom: 20px; } }
   .sheet h3 { margin: 0 0 12px; font-size: 17px; }
   .sheet .btns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
   .sheet .btns .btn { flex: 1; }
@@ -111,54 +130,35 @@
   .scope label { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
   .scope label.on { border-color: var(--orange); background: #241a0c; }
   .scope small { display: block; color: var(--dim); font-size: 12px; }
-  .switch { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
-  .switch input { width: 22px; height: 22px; }
   .sugg { border: 1px solid var(--line); border-radius: 10px; max-height: 32vh; overflow: auto; margin-top: -6px; margin-bottom: 10px; }
   .sugg div { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
   .sugg div:hover { background: var(--card2); }
   .sugg div span:last-child { color: var(--dim); }
-  .sugg .new { color: var(--orange); font-weight: 600; }
 
-  /* ---- TV preview / photo placement ---- */
-  .tv-bg { position: fixed; inset: 0; background: #000; z-index: 50; display: flex; flex-direction: column; }
-  .tv-bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  .tv-bar .info { flex: 1; }
-  .tv-bar input[type=file] { display: none; }
-  .tv-box { flex: 1; position: relative; overflow: hidden; }
-  .tv-box iframe, .lay { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0; transform-origin: top left; background: transparent; }
-  .lay .box { position: absolute; touch-action: none; cursor: move; outline: 3px dashed rgba(243,147,35,.55); outline-offset: 4px; }
-  .lay .box.sel { outline: 4px solid var(--orange); }
-  .lay .box img { display: block; width: 100%; height: auto; border-radius: 15px; pointer-events: none; user-select: none; box-shadow: 0 8px 30px rgba(0,0,0,.65); }
-  .lay .box .plabel { position: absolute; left: -42px; top: 50%; transform: translateY(-50%); width: 115px; height: 115px; border-radius: 50%; background: var(--orange); color: #000; border: 5px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 31px; pointer-events: none; text-align: center; line-height: 1; }
-  .lay .box .rs { position: absolute; right: -24px; bottom: -24px; width: 60px; height: 60px; border-radius: 50%; background: var(--orange); border: 4px solid #000; cursor: nwse-resize; touch-action: none; }
-  .lay .box .rs::after { content: "⤡"; color: #000; font-size: 32px; font-weight: 700; display: flex; align-items: center; justify-content: center; height: 100%; }
-  .tv-tools { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-top: 1px solid var(--line); flex-wrap: wrap; min-height: 52px; }
-  .lay .box.txt { outline: 2px dashed rgba(243,147,35,.7); outline-offset: 6px; background: rgba(243,147,35,.06); }
-  .lay .box.txt.sel { outline: 4px solid var(--orange); background: rgba(243,147,35,.12); }
-  .lay .box .tag { position: absolute; left: 0; top: -34px; background: var(--orange); color: #000; font-weight: 700; font-size: 22px; padding: 2px 12px; border-radius: 8px; pointer-events: none; text-transform: uppercase; letter-spacing: .05em; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .seg button { background: var(--card2); color: var(--ink); border: 0; padding: 6px 10px; font-weight: 700; }
-  .seg button + button { border-left: 1px solid var(--line); }
-  .seg button.on { background: var(--orange); color: #000; }
-  .tv-tools input[type=text] { background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 8px 10px; width: 120px; }
+  /* phone TV preview */
+  .tv-modal { position: fixed; inset: 0; background: #000; z-index: 50; display: flex; flex-direction: column; }
+  .tv-modal .bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-bottom: 1px solid var(--line); }
+  .tv-modal .bar .info { flex: 1; }
+  .tv-modal .fr { flex: 1; position: relative; overflow: hidden; }
+  .tv-modal .fr iframe { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0; transform-origin: top left; }
 
   .toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); background: #222; color: #fff; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--green); z-index: 60; max-width: 92vw; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
   .toast.bad { border-color: var(--red); }
 </style>
 </head>
 <body>
-  <!-- top bar -->
   <div class="top" id="top">
     <div class="row1">
       <img src="assets/logo.png" alt="" onerror="this.style.display='none'">
       <select id="storeSel" class="hidden"></select>
-      <button class="btn small" id="settingsBtn" title="Store & screen settings">⚙</button>
+      <span class="spacer"></span>
+      <a class="btn small hidden" id="openTV" href="#" target="_blank" title="Open this TV's page">TV link ↗</a>
+      <button class="btn small hidden" id="settingsBtn" title="Store & TV settings">⚙</button>
       <button class="btn small hidden" id="logoutBtn">Log out</button>
     </div>
     <div class="row2 hidden" id="screenChips"></div>
   </div>
 
-  <!-- login -->
   <section id="loginView" class="login hidden">
     <h1>Menu Editor · Sign in</h1>
     <form id="loginForm">
@@ -168,18 +168,29 @@
       <button class="btn primary" style="width:100%" type="submit">Sign in</button>
     </form>
   </section>
-
-  <!-- message -->
   <section id="msgView" class="login hidden"><h1 id="msgTitle"></h1><p class="info" id="msgBody"></p><div style="text-align:center;margin-top:12px"><button class="btn" id="msgRetry">Try again</button></div></section>
 
-  <!-- editor -->
-  <section id="editView" class="stage hidden">
-    <div class="board" id="board"></div>
+  <!-- desktop -->
+  <section id="deskView" class="desk hidden">
+    <div class="canvas-wrap">
+      <div class="tools">
+        <label class="btn small primary">📷 Add photo<input type="file" accept="image/*" id="dFile"></label>
+        <button class="btn small" id="dText">＋ Text</button>
+        <button class="btn small" id="dSection">＋ Section</button>
+        <span class="spacer"></span>
+        <button class="btn small" id="dArrange" title="Put the sections back into a tidy two-column layout">Auto-arrange</button>
+        <span class="info" id="dHint">Click anything on the TV to edit it · drag to move · orange corner to resize</span>
+      </div>
+      <div class="tv-box" id="tvBox"><div class="lay" id="lay"></div></div>
+    </div>
+    <aside class="panel" id="panel"></aside>
   </section>
+
+  <!-- phone -->
+  <section id="phoneView" class="stage hidden"><div id="mlist"></div></section>
   <div class="actions hidden" id="actions">
-    <button class="btn primary" id="previewBtn">▶ See it on the TV</button>
-    <button class="btn" id="photoBtn">📷 Add photo</button>
-    <button class="btn" id="addCatBtn">+ Section</button>
+    <button class="btn" id="mSection">＋ Section</button>
+    <button class="btn" id="mPreview">▶ See the TV</button>
   </div>
 
   <div id="sheetHost"></div>
@@ -202,8 +213,6 @@
   };
   const ALIGNMENT_API_URL = "https://alignment-api-khaki.vercel.app/api/dpm-alignment"; // FindMi: who manages which stores
   const IMGBB_API_KEY = "b733862d15744e2bfaa4329d122f4ba0";                             // photo uploads
-  const LOGO_URL = "assets/logo.png";
-
   const app = initializeApp(firebaseConfig), db = getFirestore(app), auth = getAuth(app);
 
   // ------------------------------------------------------------ helpers --
@@ -229,11 +238,7 @@
     if (division === "c-store" && /^\d+$/.test(num)) return "PQS" + parseInt(num, 10);
     return null;
   }
-  async function fetchAlignment() {
-    const res = await fetch(ALIGNMENT_API_URL + "?_=" + Date.now(), { cache: "no-store" });
-    if (!res.ok) throw new Error("Alignment API " + res.status);
-    return res.json();
-  }
+  async function fetchAlignment() { const res = await fetch(ALIGNMENT_API_URL + "?_=" + Date.now(), { cache: "no-store" }); if (!res.ok) throw new Error("Alignment API " + res.status); return res.json(); }
   function allowedLocationsFor(al, email, matchName) {
     const directors = al?.directors || {}, coaches = al?.areaCoaches || {}, restaurants = al?.restaurants || {};
     const em = String(email || "").trim().toLowerCase(), nm = String(matchName || "").trim().toLowerCase();
@@ -243,53 +248,51 @@
     const ids = new Set();
     for (const r of Object.values(restaurants)) {
       const locId = locationIdFromRestaurant(r); if (!locId) continue;
-      let cl = Array.isArray(r.assignedAreaCoachIds) ? r.assignedAreaCoachIds : (r.assignedAreaCoachIds && typeof r.assignedAreaCoachIds === "object") ? Object.values(r.assignedAreaCoachIds) : (r.assignedAreaCoachId ? [r.assignedAreaCoachId] : []);
+      const cl = Array.isArray(r.assignedAreaCoachIds) ? r.assignedAreaCoachIds : (r.assignedAreaCoachIds && typeof r.assignedAreaCoachIds === "object") ? Object.values(r.assignedAreaCoachIds) : (r.assignedAreaCoachId ? [r.assignedAreaCoachId] : []);
       if (dirIds.includes(r.assignedDirectorId) || cl.some(c => coachIds.includes(c))) ids.add(locId);
     }
     return { ids: [...ids].sort(storeSort), personNames };
   }
+  async function uploadToImgbb(file) {
+    const blob = await shrink(file, 1400, .85); const fd = new FormData(); fd.append("image", blob, "photo.jpg");
+    const res = await fetch("https://api.imgbb.com/1/upload?key=" + encodeURIComponent(IMGBB_API_KEY), { method: "POST", body: fd });
+    const j = await res.json(); if (!j.success) throw new Error(j.error?.message || "upload error"); return j.data.url;
+  }
+  const shrink = (file, max, q) => new Promise((ok, no) => { const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); c.toBlob(b => b ? ok(b) : no(new Error("bad image")), "image/jpeg", q); };
+    img.onerror = () => no(new Error("Not an image")); img.src = u; });
 
   // -------------------------------------------------------------- state --
-  const S = { user: null, admin: null, allowed: [], all: {}, locId: null, loc: null, si: 0, catalog: {}, unsubLoc: null, unsubCat: null, sortables: [] };
+  const S = { user: null, admin: null, allowed: [], all: {}, locId: null, loc: null, si: 0, catalog: {}, unsubLoc: null, unsubCat: null, sortables: [], sel: null };
   const params = new URLSearchParams(location.search);
-  const views = { login: $("#loginView"), msg: $("#msgView"), edit: $("#editView") };
+  const isDesktop = () => window.innerWidth >= 900;
+  const views = { login: $("#loginView"), msg: $("#msgView"), desk: $("#deskView"), phone: $("#phoneView") };
   function show(name) {
     for (const k in views) views[k].classList.toggle("hidden", k !== name);
-    $("#actions").classList.toggle("hidden", name !== "edit");
-    $("#storeSel").classList.toggle("hidden", name !== "edit");
-    $("#screenChips").classList.toggle("hidden", name !== "edit");
-    $("#settingsBtn").classList.toggle("hidden", name !== "edit");
+    const editing = name === "desk" || name === "phone";
+    for (const id of ["#storeSel", "#screenChips", "#settingsBtn", "#openTV"]) $(id).classList.toggle("hidden", !editing);
+    $("#actions").classList.toggle("hidden", name !== "phone");
   }
-  function message(title, body, retry) {
-    $("#msgTitle").textContent = title; $("#msgBody").textContent = body;
-    $("#msgRetry").classList.toggle("hidden", !retry); $("#msgRetry").onclick = retry || null; show("msg");
-  }
-  function toast(text, bad = false, ms = 2600) {
-    const t = document.createElement("div"); t.className = "toast" + (bad ? " bad" : ""); t.textContent = text;
-    $("#toastHost").appendChild(t); setTimeout(() => t.remove(), ms);
-  }
+  function message(title, body, retry) { $("#msgTitle").textContent = title; $("#msgBody").textContent = body; $("#msgRetry").classList.toggle("hidden", !retry); $("#msgRetry").onclick = retry || null; show("msg"); }
+  function toast(text, bad = false, ms = 2600) { const t = document.createElement("div"); t.className = "toast" + (bad ? " bad" : ""); t.textContent = text; $("#toastHost").appendChild(t); setTimeout(() => t.remove(), ms); }
   const screen = () => S.loc?.screens?.[S.si];
 
   // --------------------------------------------------------------- auth --
   $("#loginForm").addEventListener("submit", async e => {
     e.preventDefault(); $("#loginErr").textContent = "";
     try { await signInWithEmailAndPassword(auth, $("#email").value.trim(), $("#password").value); }
-    catch (err) {
-      const c = err?.code || "";
-      $("#loginErr").textContent = /invalid-credential|wrong-password|user-not-found|invalid-email/.test(c) ? "Email or password is incorrect." : /too-many/.test(c) ? "Too many attempts — wait a minute." : "Sign-in failed: " + c;
-    }
+    catch (err) { const c = err?.code || ""; $("#loginErr").textContent = /invalid-credential|wrong-password|user-not-found|invalid-email/.test(c) ? "Email or password is incorrect." : /too-many/.test(c) ? "Too many attempts — wait a minute." : "Sign-in failed: " + c; }
   });
   $("#logoutBtn").onclick = () => signOut(auth);
   onAuthStateChanged(auth, async user => {
     S.user = user; $("#logoutBtn").classList.toggle("hidden", !user);
-    if (!user) { S.unsubLoc?.(); S.unsubCat?.(); S.loc = null; show("login"); return; }
+    if (!user) { S.unsubLoc?.(); S.unsubCat?.(); S.loc = null; canvas.unmount(); show("login"); return; }
     await bootstrap();
   });
-
   async function bootstrap() {
     message("Loading…", "Checking your access.");
-    let a;
-    try { a = await getDoc(doc(db, "admins", S.user.uid)); } catch (e) { return message("Can't read admin record", e.message, bootstrap); }
+    let a; try { a = await getDoc(doc(db, "admins", S.user.uid)); } catch (e) { return message("Can't read admin record", e.message, bootstrap); }
     if (!a.exists()) return message("Not set up as an editor", `${S.user.email} signed in, but there is no admins/${S.user.uid} record. Ask IT to add it.`);
     S.admin = a.data();
     const ls = await getDocs(collection(db, "locations")); S.all = {}; ls.forEach(d => { S.all[d.id] = d.data(); });
@@ -307,79 +310,18 @@
     const want = (params.get("id") || localStorage.getItem("admin.locId") || "").toUpperCase();
     selectStore(S.allowed.includes(want) ? want : S.allowed[0], parseInt(params.get("screen") || "1", 10) - 1);
     sel.onchange = () => selectStore(sel.value, 0);
-    show("edit");
   }
   function selectStore(id, si = 0) {
-    S.locId = id; S.si = Math.max(0, si || 0);
+    S.locId = id; S.si = Math.max(0, si || 0); S.sel = null;
     try { localStorage.setItem("admin.locId", id); } catch (e) {}
     $("#storeSel").value = id;
     S.unsubLoc?.();
     S.unsubLoc = onSnapshot(doc(db, "locations", id), snap => {
-      S.loc = snap.exists() ? snap.data() : { name: id, screens: [] };
-      S.all[id] = S.loc;
+      S.loc = snap.exists() ? snap.data() : { name: id, screens: [] }; S.all[id] = S.loc;
       if (S.si >= (S.loc.screens || []).length) S.si = Math.max(0, (S.loc.screens || []).length - 1);
       render();
     });
   }
-
-  // ------------------------------------------------------------- render --
-  function render() {
-    if (!S.loc) return;
-    // screen chips
-    const screens = S.loc.screens || [];
-    $("#screenChips").innerHTML = screens.map((s, i) => `<button class="chip ${i === S.si ? "active" : ""}" data-i="${i}">TV ${i + 1}${s.title ? " · " + esc(s.title) : ""}</button>`).join("")
-      + `<button class="chip ghost" data-add="1">+ TV</button>`;
-    $$("#screenChips .chip").forEach(b => b.onclick = () => { if (b.dataset.add) return addScreen(); S.si = +b.dataset.i; render(); });
-
-    const board = $("#board"); S.sortables.forEach(s => s.destroy()); S.sortables = [];
-    const sc = screen();
-    if (!sc) { board.innerHTML = `<div class="empty">This store has no TV screens yet.<br><br><button class="btn primary" id="firstScreen">Set up TV 1</button></div>`; $("#firstScreen").onclick = addScreen; return; }
-    const cats = sc.categories || [];
-    board.innerHTML = `
-      <div class="hdr"><img src="${esc(S.loc.logoUrl || LOGO_URL)}" alt="" onerror="this.parentNode.classList.add('nologo')"><div class="textlogo">PARADISE<small>DELI</small></div>
-        <span class="store">${esc(S.loc.name || S.locId)}</span></div>
-      <div class="body"><div class="menu" id="menu">
-        ${cats.map(cat => `<section class="cat" data-cid="${esc(cat.id)}">
-          <h2 class="tap" data-cat="${esc(cat.id)}">${esc(cat.name)}</h2>
-          ${cat.note ? `<p class="note tap" data-cat="${esc(cat.id)}">${esc(cat.note)}</p>` : ""}
-          <div class="items" data-cid="${esc(cat.id)}">
-          ${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="item tap ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}">
-            <span class="name">${esc(it.name)}${it.override ? `<span class="ovr">this store</span>` : ""}${it.description ? `<span class="desc">${esc(it.description)}</span>` : ""}</span>
-            <span class="dots"></span><span class="price">${esc(it.price) || "<span style='color:#666'>price?</span>"}</span></div>`; }).join("")}
-          </div>
-          <div class="ghostline" data-additem="${esc(cat.id)}">+ add item to ${esc(cat.name)}</div>
-        </section>`).join("")}
-        ${cats.length ? "" : `<div class="empty">Nothing on this TV yet. Tap <b>+ Section</b> below to add a heading like “Breakfast”.</div>`}
-      </div>
-      ${sc.layout === "free" ? `<div class="ghostline" data-tvhint="1" style="margin:0 0 .6em">Free layout is on for this TV — positions and sizes are set in “See it on the TV”. Tap here to open it.</div>` : ""}
-      <div class="screen-note tap" data-note="1">${sc.note ? esc(sc.note) : `<span style="color:#666;font-weight:400;font-style:italic;font-size:.8em">+ note at the bottom of the TV (optional)</span>`}</div>
-      </div>
-      ${(sc.images || []).length ? `<div class="photos"><span class="lbl">Photos on this TV — tap to edit, or use “See it on the TV” to move them</span>
-        ${sc.images.map(im => `<img src="${esc(im.url)}" data-img="${esc(im.id)}" title="${esc(im.label || "")}">`).join("")}</div>` : ""}`;
-    board.classList.toggle("wide", board.clientWidth > 700);
-    board.style.setProperty("--u", (board.clientWidth / 1920 * (board.clientWidth > 700 ? 1 : 3.4)).toFixed(4) + "px");
-
-    $$("[data-cat]", board).forEach(el => el.onclick = () => openCategory(el.dataset.cat));
-    $$("[data-item]", board).forEach(el => el.onclick = () => openItem(el.dataset.item));
-    $$("[data-additem]", board).forEach(el => el.onclick = () => openAddItem(el.dataset.additem));
-    $("[data-note]", board).onclick = openNote;
-    $("[data-tvhint]", board) && ($("[data-tvhint]", board).onclick = () => openTV(null));
-    $$("[data-img]", board).forEach(el => el.onclick = () => openTV(el.dataset.img));
-
-    // Long-press (touch) or drag (mouse) to reorder items and sections.
-    if (window.Sortable) {
-      S.sortables.push(new Sortable($("#menu"), { draggable: ".cat", handle: "h2", delay: 250, delayOnTouchOnly: true, animation: 150, onEnd: () => {
-        const order = $$("#menu .cat").map(el => el.dataset.cid);
-        mutate(loc => { loc.screens[S.si].categories.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); });
-      } }));
-      $$("#menu .items").forEach(ul => S.sortables.push(new Sortable(ul, { group: "items", delay: 250, delayOnTouchOnly: true, animation: 150, onEnd: () => {
-        const dom = {}; $$("#menu .items").forEach(u => { dom[u.dataset.cid] = $$(".item", u).map(li => li.dataset.item); });
-        mutate(loc => { const s = loc.screens[S.si]; const all = {}; s.categories.forEach(c => (c.items || []).forEach(e => { all[e.id] = e; }));
-          s.categories.forEach(c => { c.items = (dom[c.id] || []).map(id => all[id]).filter(Boolean); }); });
-      } })));
-    }
-  }
-  window.addEventListener("resize", () => { if (S.loc && !$("#sheet")) render(); });
 
   // ------------------------------------------------------------- writes --
   async function mutate(fn, okText) {
@@ -393,19 +335,230 @@
   const findCat = (loc, id) => { const s = loc.screens[S.si]; s.categories = s.categories || []; const c = s.categories.find(c => c.id === id); if (c) c.items = c.items || []; return c; };
   const findEntry = (loc, id) => { for (const c of (loc.screens[S.si]?.categories || [])) for (const e of (c.items || [])) if (e.id === id) return e; return null; };
   const catOf = (loc, entryId) => (loc.screens[S.si]?.categories || []).find(c => (c.items || []).some(e => e.id === entryId));
-  function addScreen() { mutate(loc => { loc.screens.push({ id: uid(), title: "", note: "", categories: [] }); S.si = loc.screens.length - 1; }, "New TV screen added"); }
+  function addScreen() { mutate(loc => { loc.screens.push({ id: uid(), title: "", note: "", categories: [], layout: "free", images: [], texts: [] }); S.si = loc.screens.length - 1; }, "New TV added"); }
 
-  // ------------------------------------------------------------- sheets --
-  function sheet(html) {
-    closeSheet();
-    const bg = document.createElement("div"); bg.className = "sheet-bg"; bg.id = "sheet";
-    bg.innerHTML = `<div class="sheet">${html}</div>`;
-    bg.addEventListener("click", e => { if (e.target === bg) closeSheet(); });
-    $("#sheetHost").appendChild(bg); return bg;
+  // ------------------------------------------------------------- render --
+  function render() {
+    if (!S.loc) return;
+    const screens = S.loc.screens || [];
+    $("#screenChips").innerHTML = screens.map((s, i) => `<button class="chip ${i === S.si ? "active" : ""}" data-i="${i}">TV ${i + 1}${s.title ? " · " + esc(s.title) : ""}</button>`).join("") + `<button class="chip ghost" data-add="1">+ TV</button>`;
+    $$("#screenChips .chip").forEach(b => b.onclick = () => { if (b.dataset.add) return addScreen(); S.si = +b.dataset.i; S.sel = null; render(); });
+    $("#openTV").href = `index.html?id=${encodeURIComponent(S.locId)}&screen=${S.si + 1}`;
+    S.sortables.forEach(s => s.destroy()); S.sortables = [];
+    if (isDesktop()) { show("desk"); canvas.sync(); renderPanel(); }
+    else { show("phone"); canvas.unmount(); renderPhone(); }
   }
+  let lastMode = isDesktop();
+  window.addEventListener("resize", () => { const d = isDesktop(); if (d !== lastMode) { lastMode = d; render(); } else canvas.fit(); });
+
+  // ======================================================== DESKTOP CANVAS ==
+  // The live TV page in an iframe (with &edit=1 so it hides its own photos),
+  // scaled to fit, with draggable boxes drawn on top for every section, photo,
+  // text and the bottom note. Positions are % of the TV.
+  const canvas = (() => {
+    const box = $("#tvBox"), lay = $("#lay");
+    let fr = null, key = null, scale = 1, doc_ = null, sc = null, frozenFor = null;
+    const pct = (px, ax) => +(px / (ax === "x" ? 19.2 : 10.8)).toFixed(2);
+    function fit() {
+      if (!fr) return;
+      scale = Math.min(box.clientWidth / 1920, box.clientHeight / 1080);
+      const l = (box.clientWidth - 1920 * scale) / 2, t = (box.clientHeight - 1080 * scale) / 2;
+      for (const el of [fr, lay]) { el.style.transform = `scale(${scale})`; el.style.left = l + "px"; el.style.top = t + "px"; }
+    }
+    function unmount() { fr?.remove(); fr = null; key = null; doc_ = null; lay.innerHTML = ""; }
+    function sync() {
+      const k = S.locId + "/" + S.si;
+      sc = JSON.parse(JSON.stringify(screen() || {})); sc.images = sc.images || []; sc.texts = sc.texts || []; sc.categories = sc.categories || [];
+      if (k !== key) {
+        unmount(); key = k;
+        fr = document.createElement("iframe"); fr.src = `index.html?id=${encodeURIComponent(S.locId)}&screen=${S.si + 1}&preview=1&edit=1`;
+        box.insertBefore(fr, lay); fit();
+        fr.addEventListener("load", () => { try { doc_ = fr.contentDocument; new MutationObserver(() => setTimeout(draw, 40)).observe(doc_.body, { childList: true, subtree: true, attributes: true }); } catch (e) {} setTimeout(afterLoad, 350); });
+      } else setTimeout(draw, 60);
+    }
+    function afterLoad() {
+      // Free layout is the default: a TV that is still on automatic gets frozen where it is.
+      if (screen() && sc.layout !== "free" && frozenFor !== key && (sc.categories.length || sc.note)) { frozenFor = key; arrange(true); }
+      else draw();
+    }
+    const save = () => mutate(loc => { const s = loc.screens[S.si]; if (!s) return false; s.layout = "free"; s.images = sc.images; s.texts = sc.texts; s.noteBox = sc.noteBox || null;
+      s.categories.forEach(c => { const src = sc.categories.find(x => x.id === c.id); if (src?.box) c.box = src.box; }); });
+
+    // Tidy two-column arrangement using the sizes the TV is drawing things at.
+    function arrange(silent) {
+      if (!doc_) return;
+      const k0 = +(Math.max(.5, (parseFloat(getComputedStyle(doc_.documentElement).getPropertyValue("--fs")) || 1.55) / 1.55)).toFixed(2);
+      const boardR = doc_.querySelector(".board")?.getBoundingClientRect() || { top: 240 };
+      const els = sc.categories.map(c => doc_.querySelector(`.cat[data-cid="${c.id}"]`));
+      const gap = 58, colW = (1920 * .935 - gap) / 2, col1x = 58, col2x = col1x + colW + gap;
+      const top0 = Math.max(boardR.top, 240) + 18, colH = 1080 * .965 - top0;
+      const m = sc.categories.map((c, i) => { const el = els[i]; const rows = el ? Array.from(el.querySelectorAll(".item")).map(x => x.getBoundingClientRect().height).filter(Boolean) : [];
+        return { h2: el?.querySelector("h2")?.getBoundingClientRect().height || 46, note: el?.querySelector(".note")?.getBoundingClientRect().height || 0,
+          rowH: rows.length ? rows.reduce((s, v) => s + v, 0) / rows.length : 40, n: rows.length || (c.items || []).length }; });
+      const place = f => { let y1 = top0, y2 = top0;
+        sc.categories.forEach((c, i) => { const x_ = m[i], h1 = (x_.h2 + x_.note + x_.n * x_.rowH) * f + 30;
+          if (h1 > colH && x_.n > 6) { const y = Math.max(y1, y2), h = (x_.h2 + x_.note + Math.ceil(x_.n / 2) * x_.rowH) * f + 30;
+            c.box = { x: pct(col1x, "x"), y: pct(y, "y"), w: pct(col2x + colW - col1x, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 2 }; y1 = y2 = y + h; }
+          else { const c1 = y1 + h1 <= top0 + colH || y1 <= y2, x = c1 ? col1x : col2x, y = c1 ? y1 : y2;
+            c.box = { x: pct(x, "x"), y: pct(y, "y"), w: pct(colW, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 1 }; if (c1) y1 = y + h1; else y2 = y + h1; } });
+        return Math.max(y1, y2); };
+      const bottom = place(1); if (bottom > top0 + colH) place(Math.max(.6, (colH / (bottom - top0)) * .97));
+      if (sc.note) sc.noteBox = sc.noteBox || { x: 10, y: 93, w: 80, k: k0, align: "center" };
+      sc.layout = "free"; save(); if (!silent) toast("Sections arranged");
+    }
+    function boxes() {
+      const list = sc.images.map(im => ({ id: im.id, kind: "image", o: im }));
+      sc.categories.forEach(c => { c.box = c.box || { x: 5, y: 25, w: 42, k: 1, align: "center", cols: 1 }; list.push({ id: "cat:" + c.id, kind: "cat", o: c.box, cat: c }); });
+      if (sc.note) { sc.noteBox = sc.noteBox || { x: 10, y: 93, w: 80, k: 1, align: "center" }; list.push({ id: "note", kind: "note", o: sc.noteBox }); }
+      sc.texts.forEach(t => list.push({ id: "text:" + t.id, kind: "text", o: t, text: t }));
+      return list;
+    }
+    function liveEl(b) {
+      if (!doc_) return null;
+      if (b.kind === "cat") return doc_.querySelector(`.cat[data-cid="${b.cat.id}"]`);
+      if (b.kind === "note") return doc_.querySelector(".screen-note.free");
+      if (b.kind === "text") return doc_.querySelector(`.ftext[data-tid="${b.text.id}"]`);
+      return null;
+    }
+    function draw() {
+      if (!fr || !sc) return;
+      const bs = boxes();
+      lay.innerHTML = bs.map(b => { const o = b.o, sel = b.id === S.sel;
+        if (b.kind === "image") return `<div class="box img ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px"><img src="${esc(o.url)}" draggable="false" alt="">${o.label ? `<span class="plabel">${esc(o.label)}</span>` : ""}<span class="tag">photo</span>${sel ? `<span class="rs"></span>` : ""}</div>`;
+        const el = liveEl(b), h = el ? el.getBoundingClientRect().height : 60;
+        return `<div class="box txt ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px;height:${h}px"><span class="tag">${b.kind === "cat" ? esc(b.cat.name) : b.kind}</span>${sel ? `<span class="rs"></span>` : ""}</div>`; }).join("");
+      $$(".box", lay).forEach(el => { const b = bs.find(x => x.id === el.dataset.id); el.addEventListener("pointerdown", e => e.target.classList.contains("rs") ? startResize(e, b) : startDrag(e, b)); });
+    }
+    function live(b) { const el = liveEl(b); if (!el) return; el.style.left = b.o.x + "%"; el.style.top = b.o.y + "%"; el.style.width = b.o.w + "%"; }
+    function startDrag(e, b) {
+      e.preventDefault(); const changed = S.sel !== b.id; S.sel = b.id; draw(); if (changed) renderPanel();
+      const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o, sx = e.clientX, sy = e.clientY, ox = o.x, oy = o.y; let moved = false;
+      const mv = ev => { o.x = Math.max(-o.w + 2, Math.min(98, ox + (ev.clientX - sx) / scale / 19.2)); o.y = Math.max(-5, Math.min(98, oy + (ev.clientY - sy) / scale / 10.8)); moved = true; t.style.left = o.x * 19.2 + "px"; t.style.top = o.y * 10.8 + "px"; live(b); };
+      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); o.x = +o.x.toFixed(2); o.y = +o.y.toFixed(2); if (moved) save(); };
+      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+    }
+    function startResize(e, b) {
+      e.preventDefault(); e.stopPropagation(); const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o, sx = e.clientX, ow = o.w;
+      const mv = ev => { o.w = Math.max(4, Math.min(100, ow + (ev.clientX - sx) / scale / 19.2)); t.style.width = o.w * 19.2 + "px"; live(b); };
+      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); o.w = +o.w.toFixed(2); save(); };
+      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+    }
+    lay.addEventListener("pointerdown", e => { if (e.target === lay) { S.sel = null; draw(); renderPanel(); } });
+    const selected = () => (sc ? boxes().find(b => b.id === S.sel) : null) || null;
+    return { fit, unmount, sync, draw, save, arrange, selected, get sc() { return sc; } };
+  })();
+
+  // Desktop toolbar
+  $("#dFile").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f || !screen()) return; toast("Uploading photo…", false, 8000);
+    try { const url = await uploadToImgbb(f); const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "" }; canvas.sc.images.push(im); S.sel = im.id; await canvas.save(); toast("Photo added — drag it where you want it"); }
+    catch (err) { toast("Upload failed: " + err.message, true, 5000); }
+    e.target.value = "";
+  });
+  $("#dText").onclick = () => { if (!screen()) return toast("Add a TV first", true); const t = { id: uid(), text: "New text — edit me on the right", x: 25, y: 45, w: 50, k: 1.2, align: "center", color: "orange" }; canvas.sc.texts.push(t); S.sel = "text:" + t.id; canvas.save(); };
+  $("#dSection").onclick = () => { if (!screen()) return toast("Add a TV first", true); openCategory(null); };
+  $("#dArrange").onclick = () => { if (!confirm("Put all sections back into a tidy two-column layout? (Photos and text boxes stay where they are.)")) return; canvas.arrange(false); };
+
+  // Side panel — edits whatever is selected on the TV.
+  function renderPanel() {
+    const p = $("#panel"); const sc = screen();
+    if (!sc) { p.innerHTML = `<div class="empty">This store has no TV yet.<br><br><button class="btn primary" id="firstTV">Set up TV 1</button></div>`; $("#firstTV").onclick = addScreen; return; }
+    const b = canvas.selected();
+    const segAlign = o => `<span class="seg">${["left", "center", "right"].map(a => `<button data-al="${a}" class="${(o.align || "center") === a ? "on" : ""}" title="Align ${a}">${a === "left" ? "⇤" : a === "center" ? "☰" : "⇥"}</button>`).join("")}</span>`;
+    const segSize = () => `<span class="seg"><button data-k="-1" title="Smaller text">A−</button><button data-k="1" title="Bigger text">A+</button></span>`;
+    if (!b) {
+      const cats = sc.categories || [];
+      p.innerHTML = `<h3>${esc(S.loc.name || S.locId)} <small>TV ${S.si + 1}</small></h3>
+        <p class="hint"><b>Click</b> a section, photo or text on the TV to edit it. <b>Drag</b> to move it. Pull the <b>orange corner</b> to resize.</p>
+        <div class="secs"><h3>Sections</h3><div class="list">${cats.map(c => `<div class="it" data-pick="cat:${esc(c.id)}"><span class="n">${esc(c.name)}<small>${(c.items || []).length} items</small></span><span>›</span></div>`).join("") || `<div class="it"><span class="n info">No sections yet — click ＋ Section above.</span></div>`}</div></div>
+        <div class="secs"><h3>Note at the bottom</h3><label class="field"><input id="pNote" value="${esc(sc.note || "")}" placeholder="e.g. All meals come with a 20 oz drink"></label></div>
+        <div class="secs"><h3>Photos & text</h3><div class="list">${(sc.images || []).map(im => `<div class="it" data-pick="${esc(im.id)}"><span class="n">📷 Photo${im.label ? " · " + esc(im.label) : ""}</span><span>›</span></div>`).join("")}${(sc.texts || []).map(t => `<div class="it" data-pick="text:${esc(t.id)}"><span class="n">✎ ${esc(t.text)}</span><span>›</span></div>`).join("")}${!(sc.images || []).length && !(sc.texts || []).length ? `<div class="it"><span class="n info">None yet — use 📷 Add photo or ＋ Text.</span></div>` : ""}</div></div>`;
+      $$("[data-pick]", p).forEach(el => el.onclick = () => { S.sel = el.dataset.pick; canvas.draw(); renderPanel(); });
+      $("#pNote").onchange = e => mutate(loc => { loc.screens[S.si].note = e.target.value.trim(); }, "Saved");
+      return;
+    }
+    const o = b.o;
+    if (b.kind === "cat") {
+      const cat = (sc.categories || []).find(c => c.id === b.cat.id);
+      p.innerHTML = `<h3>Section</h3>
+        <label class="field"><span>Heading</span><input id="pName" value="${esc(cat.name)}"></label>
+        <label class="field"><span>Small note under the heading</span><input id="pCatNote" value="${esc(cat.note || "")}" placeholder="optional"></label>
+        <div class="rowbtns">${segAlign(o)} ${segSize()} <span class="seg"><button data-cols="1" class="${o.cols !== 2 ? "on" : ""}">1 col</button><button data-cols="2" class="${o.cols === 2 ? "on" : ""}">2 cols</button></span></div>
+        <h3>Items <small>click to edit · drag ⋮ to reorder</small></h3>
+        <div class="list" id="pItems">${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="it ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}"><span class="h">⋮</span><span class="n">${esc(it.name)}${it.override ? `<span class="ovr">this store</span>` : ""}${it.description ? `<small>${esc(it.description)}</small>` : ""}</span><span class="p">${esc(it.price) || "<span class=info>price?</span>"}</span></div>`; }).join("")}</div>
+        <div class="rowbtns"><button class="btn small primary" id="pAddItem">＋ Add item</button><button class="btn small danger" id="pDelCat">Delete section</button></div>`;
+      $("#pName").onchange = e => { const v = e.target.value.trim(); if (v) mutate(loc => { findCat(loc, cat.id).name = v; }); };
+      $("#pCatNote").onchange = e => mutate(loc => { findCat(loc, cat.id).note = e.target.value.trim(); });
+      $$("[data-item]", p).forEach(el => el.onclick = () => openItem(el.dataset.item));
+      $("#pAddItem").onclick = () => openAddItem(cat.id);
+      $("#pDelCat").onclick = () => { if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this TV?`)) return; S.sel = null; mutate(loc => { const s = loc.screens[S.si]; s.categories = s.categories.filter(c => c.id !== cat.id); }, "Section deleted"); };
+      $$("[data-cols]", p).forEach(x => x.onclick = () => { o.cols = +x.dataset.cols; canvas.save(); });
+      if (window.Sortable) S.sortables.push(new Sortable($("#pItems"), { handle: ".h", animation: 150, onEnd: () => { const order = $$("#pItems .it").map(x => x.dataset.item); mutate(loc => { const c = findCat(loc, cat.id); c.items.sort((a, b2) => order.indexOf(a.id) - order.indexOf(b2.id)); }); } }));
+    } else if (b.kind === "image") {
+      p.innerHTML = `<h3>Photo</h3><img src="${esc(o.url)}" style="width:100%;border-radius:10px;margin-bottom:10px" alt="">
+        <label class="field"><span>Price bubble (optional)</span><input id="pLabel" value="${esc(o.label || "")}" placeholder="$2.49"></label>
+        <div class="rowbtns"><button class="btn small" id="pFront">Bring to front</button><button class="btn small danger" id="pDel">Remove photo</button></div>`;
+      $("#pLabel").onchange = e => { o.label = e.target.value.trim(); canvas.save(); };
+      $("#pFront").onclick = () => { canvas.sc.images = canvas.sc.images.filter(x => x !== o).concat([o]); canvas.save(); };
+      $("#pDel").onclick = () => { if (!confirm("Remove this photo?")) return; canvas.sc.images = canvas.sc.images.filter(x => x !== o); S.sel = null; canvas.save(); };
+    } else if (b.kind === "text") {
+      p.innerHTML = `<h3>Text</h3><label class="field"><span>Text</span><textarea id="pText" rows="3">${esc(o.text)}</textarea></label>
+        <div class="rowbtns">${segAlign(o)} ${segSize()} <span class="seg"><button data-col="white" class="${(o.color || "white") === "white" ? "on" : ""}">White</button><button data-col="orange" class="${o.color === "orange" ? "on" : ""}">Orange</button></span></div>
+        <div class="rowbtns"><button class="btn small danger" id="pDel">Remove text</button></div>`;
+      $("#pText").onchange = e => { o.text = e.target.value.trim(); canvas.save(); };
+      $$("[data-col]", p).forEach(x => x.onclick = () => { o.color = x.dataset.col; canvas.save(); });
+      $("#pDel").onclick = () => { if (!confirm("Remove this text?")) return; canvas.sc.texts = canvas.sc.texts.filter(x => x !== o); S.sel = null; canvas.save(); };
+    } else if (b.kind === "note") {
+      p.innerHTML = `<h3>Note at the bottom</h3><label class="field"><span>Text (empty removes it)</span><input id="pNote2" value="${esc(sc.note || "")}"></label><div class="rowbtns">${segAlign(o)} ${segSize()}</div>`;
+      $("#pNote2").onchange = e => { const v = e.target.value.trim(); if (!v) S.sel = null; mutate(loc => { loc.screens[S.si].note = v; }); };
+    }
+    $$("[data-al]", p).forEach(x => x.onclick = () => { o.align = x.dataset.al; canvas.save(); });
+    $$("[data-k]", p).forEach(x => x.onclick = () => { o.k = +Math.max(.5, Math.min(2.5, (o.k || 1) + .1 * +x.dataset.k)).toFixed(2); canvas.save(); });
+    p.insertAdjacentHTML("beforeend", `<p class="hint" style="margin-top:14px"><button class="btn small" id="pBack">‹ Back to TV overview</button></p>`);
+    $("#pBack").onclick = () => { S.sel = null; canvas.draw(); renderPanel(); };
+  }
+
+  // =========================================================== PHONE LIST ==
+  function renderPhone() {
+    const host = $("#mlist");
+    const sc = screen();
+    if (!sc) { host.innerHTML = `<div class="empty">This store has no TV yet.<br><br><button class="btn primary" id="firstTV">Set up TV 1</button></div>`; $("#firstTV").onclick = addScreen; return; }
+    const cats = sc.categories || [];
+    host.innerHTML = `${cats.map(cat => `<div class="m-sec" data-cid="${esc(cat.id)}">
+        <div class="mh"><span class="mh-handle" style="color:var(--dim);cursor:grab;touch-action:none">☰</span><span class="t" data-cat="${esc(cat.id)}">${esc(cat.name)}${cat.note ? `<small>${esc(cat.note)}</small>` : ""}</span><button class="btn small" data-cat="${esc(cat.id)}">✎</button></div>
+        <div class="mitems" data-cid="${esc(cat.id)}">${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="mi ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}"><span class="h">⋮⋮</span><span class="n">${esc(it.name)}${it.override ? ` <span style="color:var(--orange);font-size:11px;font-weight:700">this store</span>` : ""}${it.description ? `<small>${esc(it.description)}</small>` : ""}</span><span class="p">${esc(it.price) || "<span class=info>price?</span>"}</span></div>`; }).join("")}</div>
+        <div class="add" data-additem="${esc(cat.id)}">＋ Add item to ${esc(cat.name)}</div>
+      </div>`).join("")}
+      ${cats.length ? "" : `<div class="empty">Nothing on this TV yet. Tap <b>＋ Section</b> to add a heading like “Breakfast”.</div>`}
+      <div class="m-note" data-note="1">${sc.note ? esc(sc.note) : `<span class="info">+ note at the bottom of the TV (optional)</span>`}</div>
+      <p class="info" style="text-align:center">Moving things around, photos and text sizes are done on a computer.</p>`;
+    $$("[data-cat]", host).forEach(el => el.onclick = () => openCategory(el.dataset.cat));
+    $$("[data-item]", host).forEach(el => el.onclick = () => openItem(el.dataset.item));
+    $$("[data-additem]", host).forEach(el => el.onclick = () => openAddItem(el.dataset.additem));
+    $("[data-note]", host).onclick = openNote;
+    if (window.Sortable) {
+      S.sortables.push(new Sortable(host, { draggable: ".m-sec", handle: ".mh-handle", animation: 150, onEnd: () => { const order = $$(".m-sec", host).map(el => el.dataset.cid); mutate(loc => { loc.screens[S.si].categories.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); }); } }));
+      $$(".mitems", host).forEach(ul => S.sortables.push(new Sortable(ul, { group: "items", handle: ".h", animation: 150, onEnd: () => {
+        const dom = {}; $$(".mitems", host).forEach(u => { dom[u.dataset.cid] = $$(".mi", u).map(li => li.dataset.item); });
+        mutate(loc => { const s = loc.screens[S.si]; const all = {}; s.categories.forEach(c => (c.items || []).forEach(e => { all[e.id] = e; })); s.categories.forEach(c => { c.items = (dom[c.id] || []).map(id => all[id]).filter(Boolean); }); });
+      } })));
+    }
+  }
+  $("#mSection").onclick = () => { if (!screen()) return toast("Add a TV first", true); openCategory(null); };
+  $("#mPreview").onclick = () => {
+    const bg = document.createElement("div"); bg.className = "tv-modal";
+    bg.innerHTML = `<div class="bar"><span class="info">${esc(S.loc.name || S.locId)} · TV ${S.si + 1}</span><button class="btn small primary" id="tvClose">Close</button></div><div class="fr"><iframe src="index.html?id=${esc(S.locId)}&screen=${S.si + 1}&preview=1"></iframe></div>`;
+    document.body.appendChild(bg);
+    const f = $(".fr", bg), ifr = $("iframe", bg);
+    const fit = () => { const s = Math.min(f.clientWidth / 1920, f.clientHeight / 1080); ifr.style.transform = `scale(${s})`; ifr.style.left = (f.clientWidth - 1920 * s) / 2 + "px"; ifr.style.top = (f.clientHeight - 1080 * s) / 2 + "px"; };
+    fit(); window.addEventListener("resize", fit);
+    $("#tvClose", bg).onclick = () => { window.removeEventListener("resize", fit); bg.remove(); };
+  };
+
+  // ================================================================ SHEETS ==
+  function sheet(html) { closeSheet(); const bg = document.createElement("div"); bg.className = "sheet-bg"; bg.id = "sheet"; bg.innerHTML = `<div class="sheet">${html}</div>`; bg.addEventListener("click", e => { if (e.target === bg) closeSheet(); }); $("#sheetHost").appendChild(bg); return bg; }
   function closeSheet() { $("#sheet")?.remove(); }
 
-  // Section (category)
   function openCategory(catId) {
     const cat = catId ? findCat(JSON.parse(JSON.stringify(S.loc)), catId) : null;
     const el = sheet(`<h3>${cat ? "Section" : "New section"}</h3>
@@ -416,50 +569,38 @@
     $("#cName", el).focus();
     $("#cSave", el).onclick = () => {
       const name = $("#cName", el).value.trim(), note = $("#cNote", el).value.trim(); if (!name) return $("#cName", el).focus();
-      mutate(loc => { if (cat) { const c = findCat(loc, catId); c.name = name; c.note = note; } else loc.screens[S.si].categories.push({ id: uid(), name, note, items: [] }); }, "Saved");
+      const id = cat ? catId : uid();
+      mutate(loc => { if (cat) { const c = findCat(loc, catId); c.name = name; c.note = note; } else loc.screens[S.si].categories.push({ id, name, note, items: [], box: { x: 5, y: 30, w: 42, k: 1, align: "center", cols: 1 } }); }, "Saved");
+      if (!cat && isDesktop()) S.sel = "cat:" + id;
       closeSheet();
     };
     if (cat) {
-      const move = d => mutate(loc => { const cs = loc.screens[S.si].categories; const i = cs.findIndex(c => c.id === catId); const j = i + d; if (j < 0 || j >= cs.length) return false; [cs[i], cs[j]] = [cs[j], cs[i]]; });
-      $("#cUp", el).onclick = () => { move(-1); closeSheet(); };
-      $("#cDown", el).onclick = () => { move(1); closeSheet(); };
-      $("#cDel", el).onclick = () => {
-        if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this TV?`)) return;
-        mutate(loc => { const s = loc.screens[S.si]; s.categories = s.categories.filter(c => c.id !== catId); }, "Section deleted"); closeSheet();
-      };
+      const move = d => mutate(loc => { const cs = loc.screens[S.si].categories; const i = cs.findIndex(c => c.id === catId), j = i + d; if (j < 0 || j >= cs.length) return false; [cs[i], cs[j]] = [cs[j], cs[i]]; });
+      $("#cUp", el).onclick = () => { move(-1); closeSheet(); }; $("#cDown", el).onclick = () => { move(1); closeSheet(); };
+      $("#cDel", el).onclick = () => { if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this TV?`)) return; S.sel = null; mutate(loc => { const s = loc.screens[S.si]; s.categories = s.categories.filter(c => c.id !== catId); }, "Section deleted"); closeSheet(); };
     }
   }
-  $("#addCatBtn").onclick = () => { if (!screen()) return toast("Set up a TV screen first", true); openCategory(null); };
-
-  // Add item: type a name; matching shared items are suggested, otherwise a new one is created.
   function openAddItem(catId) {
     const el = sheet(`<h3>Add item</h3>
       <label class="field"><span>Item name</span><input id="aName" placeholder="e.g. Corn Dog" autocomplete="off"></label>
-      <div class="sugg" id="aSugg"></div>
+      <div class="sugg hidden" id="aSugg"></div>
       <label class="field"><span>Price (type it exactly as it should show)</span><input id="aPrice" placeholder="$1.99  ·  2 for $3.00  ·  $0.99 ea or 5 for $4.79"></label>
       <div class="btns"><button class="btn primary" id="aSave">Add to menu</button></div>`);
     const q = $("#aName", el), sg = $("#aSugg", el), pr = $("#aPrice", el); let picked = null;
-    const list = () => {
-      const t = q.value.trim().toLowerCase();
+    const list = () => { const t = q.value.trim().toLowerCase();
       const rows = t ? Object.entries(S.catalog).map(([id, it]) => ({ id, ...it })).filter(it => it.name.toLowerCase().includes(t)).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8) : [];
       picked = rows.find(r => r.name.toLowerCase() === t)?.id || null;
-      sg.innerHTML = rows.map(r => `<div data-id="${esc(r.id)}"><span>${esc(r.name)}</span><span>${esc(r.price || "")}</span></div>`).join("");
-      sg.classList.toggle("hidden", !rows.length);
-      $$("[data-id]", sg).forEach(r => r.onclick = () => { q.value = S.catalog[r.dataset.id].name; picked = r.dataset.id; if (!pr.value) pr.value = S.catalog[picked].price || ""; sg.classList.add("hidden"); pr.focus(); });
-    };
-    q.oninput = list; list(); q.focus();
+      sg.innerHTML = rows.map(r => `<div data-id="${esc(r.id)}"><span>${esc(r.name)}</span><span>${esc(r.price || "")}</span></div>`).join(""); sg.classList.toggle("hidden", !rows.length);
+      $$("[data-id]", sg).forEach(r => r.onclick = () => { q.value = S.catalog[r.dataset.id].name; picked = r.dataset.id; if (!pr.value) pr.value = S.catalog[picked].price || ""; sg.classList.add("hidden"); pr.focus(); }); };
+    q.oninput = list; q.focus();
     $("#aSave", el).onclick = async () => {
       const name = q.value.trim(), price = pr.value.trim(); if (!name) return q.focus();
-      let itemId = picked || slug(name);
-      if (!S.catalog[itemId]) { await setDoc(doc(db, "menuItems", itemId), { name, price, description: "", createdAt: serverTimestamp(), createdBy: S.user.email }); }
-      const entry = { id: uid(), itemId };
-      if (S.catalog[itemId] && price && price !== S.catalog[itemId].price) entry.price = price;   // different here than elsewhere → store-only price
-      await mutate(loc => { findCat(loc, catId).items.push(entry); }, `Added ${name}`);
-      closeSheet();
+      const itemId = picked || slug(name);
+      if (!S.catalog[itemId]) await setDoc(doc(db, "menuItems", itemId), { name, price, description: "", createdAt: serverTimestamp(), createdBy: S.user.email });
+      const entry = { id: uid(), itemId }; if (S.catalog[itemId] && price && price !== S.catalog[itemId].price) entry.price = price;
+      await mutate(loc => { findCat(loc, catId).items.push(entry); }, `Added ${name}`); closeSheet();
     };
   }
-
-  // Item: name, price, description, hide, remove, move.
   function openItem(entryId) {
     const entry = findEntry(JSON.parse(JSON.stringify(S.loc)), entryId); if (!entry) return;
     const it = resolveItem(entry, S.catalog);
@@ -471,36 +612,26 @@
       <label class="field"><span>Price</span><input id="iPrice" value="${esc(it.price)}" placeholder="$0.00"></label>
       ${others.length ? `<div class="scope">
         <label class="on"><input type="radio" name="scope" value="all" checked><div><b>Change price at all my stores</b><small>${esc(listedAt.join(", "))}</small></div></label>
-        <label><input type="radio" name="scope" value="one"><div><b>Only at ${esc(S.loc.name || S.locId)}</b><small>Other stores keep ${esc(it.basePrice || "their price")}.</small></div></label>
-      </div>` : ""}
+        <label><input type="radio" name="scope" value="one"><div><b>Only at ${esc(S.loc.name || S.locId)}</b><small>Other stores keep ${esc(it.basePrice || "their price")}.</small></div></label></div>` : ""}
       <label class="field"><span>Small text under the name (optional)</span><input id="iDesc" value="${esc(it.description)}" placeholder="e.g. Pollo y queso"></label>
       <div class="switch"><span>Hide from the TV (keep on the list)</span><input type="checkbox" id="iHidden" ${it.hidden ? "checked" : ""}></div>
       <div class="rowbtns"><button class="btn" id="iUp">↑ Move up</button><button class="btn" id="iDown">↓ Move down</button></div>`}
       <div class="btns"><button class="btn primary grow2" id="iSave" ${it.missing ? "disabled" : ""}>Save</button><button class="btn danger" id="iRemove">Remove</button></div>`);
     $$("input[name=scope]", el).forEach(r => r.onchange = () => $$(".scope label", el).forEach(l => l.classList.toggle("on", $("input", l).checked)));
     const move = d => mutate(loc => { const c = catOf(loc, entryId); const i = c.items.findIndex(e => e.id === entryId), j = i + d; if (j < 0 || j >= c.items.length) return false; [c.items[i], c.items[j]] = [c.items[j], c.items[i]]; });
-    $("#iUp", el) && ($("#iUp", el).onclick = () => { move(-1); closeSheet(); });
-    $("#iDown", el) && ($("#iDown", el).onclick = () => { move(1); closeSheet(); });
+    $("#iUp", el) && ($("#iUp", el).onclick = () => { move(-1); closeSheet(); }); $("#iDown", el) && ($("#iDown", el).onclick = () => { move(1); closeSheet(); });
     $("#iRemove", el).onclick = () => { if (!confirm(`Remove "${it.name}" from this TV?`)) return; mutate(loc => { loc.screens[S.si].categories.forEach(c => { c.items = (c.items || []).filter(e => e.id !== entryId); }); }, "Removed"); closeSheet(); };
     $("#iSave", el).onclick = async () => {
-      const name = $("#iName", el).value.trim(), price = $("#iPrice", el).value.trim(), desc = $("#iDesc", el).value.trim(), hidden = $("#iHidden", el).checked;
-      if (!name) return;
+      const name = $("#iName", el).value.trim(), price = $("#iPrice", el).value.trim(), desc = $("#iDesc", el).value.trim(), hidden = $("#iHidden", el).checked; if (!name) return;
       try {
         if (it.custom) { await mutate(loc => Object.assign(findEntry(loc, entryId), { name, price, description: desc, hidden }), "Saved"); closeSheet(); return; }
-        const base = S.catalog[it.itemId] || {}, patch = {};
-        if (name !== base.name) patch.name = name;
-        if (desc !== (base.description || "")) patch.description = desc;
+        const base = S.catalog[it.itemId] || {}, patch = {}; if (name !== base.name) patch.name = name; if (desc !== (base.description || "")) patch.description = desc;
         const scope = others.length ? $("input[name=scope]:checked", el).value : "all";
         if (scope === "all") {
-          // Shared price + clear store-only prices for this item at every store I manage.
-          const batch = writeBatch(db);
-          batch.update(doc(db, "menuItems", it.itemId), { ...patch, price, updatedAt: serverTimestamp(), updatedBy: S.user.email });
-          for (const id of others) {
-            const snap = await getDoc(doc(db, "locations", id)); if (!snap.exists()) continue;
-            const data = snap.data(); let touched = false;
+          const batch = writeBatch(db); batch.update(doc(db, "menuItems", it.itemId), { ...patch, price, updatedAt: serverTimestamp(), updatedBy: S.user.email });
+          for (const id of others) { const snap = await getDoc(doc(db, "locations", id)); if (!snap.exists()) continue; const data = snap.data(); let touched = false;
             (data.screens || []).forEach(s => (s.categories || []).forEach(c => (c.items || []).forEach(e => { if (e.itemId === it.itemId && e.price != null) { delete e.price; touched = true; } })));
-            if (touched) batch.set(doc(db, "locations", id), { screens: data.screens, updatedAt: serverTimestamp(), updatedBy: S.user.email }, { merge: true });
-          }
+            if (touched) batch.set(doc(db, "locations", id), { screens: data.screens, updatedAt: serverTimestamp(), updatedBy: S.user.email }, { merge: true }); }
           await batch.commit();
           await mutate(loc => { loc.screens.forEach(s => (s.categories || []).forEach(c => (c.items || []).forEach(e => { if (e.itemId === it.itemId) delete e.price; }))); findEntry(loc, entryId).hidden = hidden; });
           toast(others.length ? `${name} is now ${price} at ${listedAt.length} stores` : `Saved ${name}`);
@@ -513,211 +644,20 @@
       } catch (e) { console.error(e); toast("Save failed: " + (e.code || e.message), true, 5000); }
     };
   }
-
-  // Footer note
   function openNote() {
-    const el = sheet(`<h3>Note at the bottom of the TV</h3>
-      <label class="field"><span>Text (leave empty for none)</span><input id="nText" value="${esc(screen().note || "")}" placeholder="e.g. All meals come with a 20 oz drink"></label>
-      <div class="btns"><button class="btn primary" id="nSave">Save</button></div>`);
-    $("#nText", el).focus();
-    $("#nSave", el).onclick = () => { const t = $("#nText", el).value.trim(); mutate(loc => { loc.screens[S.si].note = t; }, "Saved"); closeSheet(); };
+    const el = sheet(`<h3>Note at the bottom of the TV</h3><label class="field"><span>Text (leave empty for none)</span><input id="nText" value="${esc(screen().note || "")}"></label><div class="btns"><button class="btn primary" id="nSave">Save</button></div>`);
+    $("#nText", el).focus(); $("#nSave", el).onclick = () => { const t = $("#nText", el).value.trim(); mutate(loc => { loc.screens[S.si].note = t; }, "Saved"); closeSheet(); };
   }
-
-  // Store & TV settings
   $("#settingsBtn").onclick = () => {
     const sc = screen();
     const el = sheet(`<h3>${esc(S.loc.name || S.locId)}</h3>
       <div class="switch"><span>Store is live <small class="info">(shows in the store list)</small></span><input type="checkbox" id="sActive" ${S.loc.active !== false ? "checked" : ""}></div>
-      ${sc ? `<label class="field"><span>Name for TV ${S.si + 1} (only you see this, e.g. “Breakfast board”)</span><input id="sTitle" value="${esc(sc.title || "")}"></label>
+      ${sc ? `<label class="field"><span>Name for TV ${S.si + 1} (only editors see this)</span><input id="sTitle" value="${esc(sc.title || "")}" placeholder="e.g. Breakfast board"></label>
       <p class="info">This TV's link: <a href="index.html?id=${esc(S.locId)}&screen=${S.si + 1}" target="_blank">index.html?id=${esc(S.locId)}&screen=${S.si + 1}</a></p>` : ""}
       <div class="btns"><button class="btn primary grow2" id="sSave">Save</button>${sc ? `<button class="btn danger" id="sDel">Delete TV ${S.si + 1}</button>` : ""}</div>`);
     $("#sSave", el).onclick = () => { const active = $("#sActive", el).checked, title = $("#sTitle", el)?.value.trim(); mutate(loc => { loc.active = active; if (sc) loc.screens[S.si].title = title; }, "Saved"); closeSheet(); };
-    if (sc) $("#sDel", el).onclick = () => {
-      const n = (sc.categories || []).reduce((a, c) => a + (c.items || []).length, 0);
-      if (!confirm(`Delete TV ${S.si + 1}${n ? ` and its ${n} items` : ""}? The TV using that link will show "not set up".`)) return;
-      mutate(loc => { loc.screens.splice(S.si, 1); S.si = Math.max(0, S.si - 1); }, "TV screen deleted"); closeSheet();
-    };
+    if (sc) $("#sDel", el).onclick = () => { const n = (sc.categories || []).reduce((a, c) => a + (c.items || []).length, 0); if (!confirm(`Delete TV ${S.si + 1}${n ? ` and its ${n} items` : ""}?`)) return; S.sel = null; mutate(loc => { loc.screens.splice(S.si, 1); S.si = Math.max(0, S.si - 1); }, "TV deleted"); closeSheet(); };
   };
-
-  // -------------------------------------------------------------- imgbb --
-  async function uploadToImgbb(file) {
-    const blob = await shrink(file, 1400, .85);
-    const fd = new FormData(); fd.append("image", blob, "photo.jpg");
-    const res = await fetch("https://api.imgbb.com/1/upload?key=" + encodeURIComponent(IMGBB_API_KEY), { method: "POST", body: fd });
-    const j = await res.json(); if (!j.success) throw new Error(j.error?.message || "upload error"); return j.data.url;
-  }
-  const shrink = (file, max, q) => new Promise((ok, no) => { const img = new Image(), u = URL.createObjectURL(file);
-    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); c.toBlob(b => b ? ok(b) : no(new Error("bad image")), "image/jpeg", q); };
-    img.onerror = () => no(new Error("Not an image")); img.src = u; });
-
-  // ------------------------------------------- TV view: exact preview + layout --
-  // Shows the real TV page (iframe) scaled to fit, with draggable boxes drawn on
-  // top. Photos are always free. Sections / note / text boxes become draggable
-  // when the TV is switched to "free layout"; until then the TV lays them out
-  // automatically. All positions are % of the TV, so any screen size matches.
-  $("#previewBtn").onclick = () => openTV(null);
-  $("#photoBtn").onclick = () => { if (!screen()) return toast("Set up a TV screen first", true); openTV(null, true); };
-  function openTV(selectId, pickFile) {
-    const si = S.si;
-    let sc = JSON.parse(JSON.stringify(screen())); sc.images = sc.images || []; sc.texts = sc.texts || [];
-    let selId = selectId || null, scale = 1, iframeDoc = null;
-    const bg = document.createElement("div"); bg.className = "tv-bg";
-    bg.innerHTML = `<div class="tv-bar"><span class="info">${esc(S.loc.name || S.locId)} · TV ${si + 1}</span>
-        <label class="btn small" id="layoutToggle"><input type="checkbox" id="freeChk" style="vertical-align:middle;margin:0 4px 0 0"> Free layout</label>
-        <label class="btn small">📷 Photo<input type="file" accept="image/*" id="tvFile"></label>
-        <button class="btn small" id="tvText">＋ Text</button>
-        <a class="btn small" target="_blank" href="index.html?id=${esc(S.locId)}&screen=${si + 1}">Open ↗</a><button class="btn small primary" id="tvClose">Done</button></div>
-      <div class="tv-box"><iframe src="index.html?id=${esc(S.locId)}&screen=${si + 1}&preview=1&edit=1"></iframe><div class="lay" id="lay"></div></div>
-      <div class="tv-tools" id="tvTools"></div>`;
-    document.body.appendChild(bg);
-    const box = $(".tv-box", bg), fr = $("iframe", bg), lay = $("#lay", bg), tools = $("#tvTools", bg), freeChk = $("#freeChk", bg);
-    const fit = () => { scale = Math.min(box.clientWidth / 1920, box.clientHeight / 1080); const l = (box.clientWidth - 1920 * scale) / 2, t = (box.clientHeight - 1080 * scale) / 2;
-      for (const el of [fr, lay]) { el.style.transform = `scale(${scale})`; el.style.left = l + "px"; el.style.top = t + "px"; } };
-    fit(); window.addEventListener("resize", fit);
-    fr.addEventListener("load", () => { try { iframeDoc = fr.contentDocument; new MutationObserver(() => setTimeout(draw, 50)).observe(iframeDoc.body, { childList: true, subtree: true }); } catch (e) {} setTimeout(draw, 300); });
-
-    const isFree = () => sc.layout === "free";
-    const save = () => mutate(loc => { const s = loc.screens[si]; s.layout = sc.layout || "auto"; s.images = sc.images; s.texts = sc.texts; s.noteBox = sc.noteBox || null;
-      s.categories.forEach(c => { const src = sc.categories.find(x => x.id === c.id); if (src && src.box) c.box = src.box; }); });
-
-    // Every draggable thing on the TV, normalised to {id, kind, get(): {x,y,w,k,align}, set(...)}
-    function boxes() {
-      const list = sc.images.map(im => ({ id: im.id, kind: "image", o: im }));
-      if (isFree()) {
-        sc.categories.forEach(c => { c.box = c.box || { x: 5, y: 25, w: 42, k: 1, align: "center" }; list.push({ id: "cat:" + c.id, kind: "cat", o: c.box, cat: c }); });
-        if (sc.note) { sc.noteBox = sc.noteBox || { x: 10, y: 92, w: 80, k: 1, align: "center" }; list.push({ id: "note", kind: "note", o: sc.noteBox }); }
-        sc.texts.forEach(t => list.push({ id: "text:" + t.id, kind: "text", o: t, text: t }));
-      }
-      return list;
-    }
-    // Rendered height of a text-ish box comes from the live TV page.
-    function liveEl(b) {
-      if (!iframeDoc) return null;
-      if (b.kind === "cat") return iframeDoc.querySelector(`.cat[data-cid="${b.cat.id}"]`);
-      if (b.kind === "note") return iframeDoc.querySelector(".screen-note.free");
-      if (b.kind === "text") return iframeDoc.querySelector(`.ftext[data-tid="${b.text.id}"]`);
-      return null;
-    }
-    function draw() {
-      const bs = boxes();
-      lay.innerHTML = bs.map(b => {
-        const o = b.o, sel = b.id === selId;
-        if (b.kind === "image") return `<div class="box img ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px">
-          <img src="${esc(o.url)}" draggable="false" alt="">${o.label ? `<span class="plabel">${esc(o.label)}</span>` : ""}${sel ? `<span class="rs"></span>` : ""}</div>`;
-        const el = liveEl(b); const h = el ? el.getBoundingClientRect().height : 60;
-        return `<div class="box txt ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px;height:${h}px">
-          <span class="tag">${b.kind === "cat" ? esc(b.cat.name) : b.kind === "note" ? "note" : "text"}</span>${sel ? `<span class="rs"></span>` : ""}</div>`;
-      }).join("");
-      $$(".box", lay).forEach(el => { const b = bs.find(x => x.id === el.dataset.id); el.addEventListener("pointerdown", e => e.target.classList.contains("rs") ? startResize(e, b) : startDrag(e, b)); });
-      drawTools(bs);
-    }
-    function drawTools(bs) {
-      const b = bs.find(x => x.id === selId);
-      if (!b) { tools.innerHTML = `<span class="info">${isFree() ? "Tap a section, photo or text to select it. Drag to move, orange corner to resize." : "Photos can be dragged. Turn on <b>Free layout</b> to move and resize the sections and text too."}</span>`; return; }
-      const o = b.o;
-      const alignBtns = b.kind === "image" ? "" : `<span class="seg"><button data-al="left" class="${(o.align || "center") === "left" ? "on" : ""}">⇤</button><button data-al="center" class="${(o.align || "center") === "center" ? "on" : ""}">☰</button><button data-al="right" class="${(o.align || "center") === "right" ? "on" : ""}">⇥</button></span>
-        <span class="seg"><button data-k="-1">A−</button><button data-k="1">A+</button></span>`;
-      tools.innerHTML = `${b.kind === "image" ? `<span class="info">Price bubble:</span><input type="text" id="tvLabel" value="${esc(o.label || "")}" placeholder="$2.49">` : ""}
-        ${b.kind === "text" ? `<button class="btn small" id="tvEditText">✎ Edit text</button><span class="seg"><button data-col="white" class="${(o.color || "white") === "white" ? "on" : ""}">White</button><button data-col="orange" class="${o.color === "orange" ? "on" : ""}">Orange</button></span>` : ""}
-        ${b.kind === "cat" ? `<button class="btn small" id="tvEditCat">✎ Edit section</button><span class="seg"><button data-cols="1" class="${o.cols !== 2 ? "on" : ""}">1 col</button><button data-cols="2" class="${o.cols === 2 ? "on" : ""}">2 cols</button></span>` : ""}
-        ${alignBtns}
-        <button class="btn small" id="tvCenter">Center on TV</button>
-        ${b.kind === "image" ? `<button class="btn small" id="tvFront">Bring to front</button>` : ""}
-        ${b.kind === "image" || b.kind === "text" ? `<button class="btn small danger" id="tvDel">Remove</button>` : ""}`;
-      $$("[data-al]", tools).forEach(x => x.onclick = () => { o.align = x.dataset.al; draw(); save(); });
-      $$("[data-k]", tools).forEach(x => x.onclick = () => { o.k = +Math.max(.5, Math.min(2.5, (o.k || 1) + .1 * +x.dataset.k)).toFixed(2); save(); setTimeout(draw, 250); });
-      $$("[data-col]", tools).forEach(x => x.onclick = () => { o.color = x.dataset.col; draw(); save(); });
-      $$("[data-cols]", tools).forEach(x => x.onclick = () => { o.cols = +x.dataset.cols; save(); setTimeout(draw, 250); });
-      $("#tvCenter", tools).onclick = () => { o.x = +((100 - o.w) / 2).toFixed(2); draw(); save(); };
-      $("#tvLabel", tools) && ($("#tvLabel", tools).onchange = e => { o.label = e.target.value.trim(); draw(); save(); });
-      $("#tvFront", tools) && ($("#tvFront", tools).onclick = () => { sc.images = sc.images.filter(x => x !== o).concat([o]); draw(); save(); });
-      $("#tvDel", tools) && ($("#tvDel", tools).onclick = () => { if (!confirm("Remove this?")) return; if (b.kind === "image") sc.images = sc.images.filter(x => x !== o); else sc.texts = sc.texts.filter(x => x !== o); selId = null; draw(); save(); });
-      $("#tvEditText", tools) && ($("#tvEditText", tools).onclick = () => { const t = prompt("Text to show on the TV:", o.text); if (t != null) { o.text = t.trim(); draw(); save(); } });
-      $("#tvEditCat", tools) && ($("#tvEditCat", tools).onclick = () => { close(); openCategory(b.cat.id); });
-    }
-    function live(b) { const el = liveEl(b); if (!el) return; el.style.left = b.o.x + "%"; el.style.top = b.o.y + "%"; el.style.width = b.o.w + "%"; }
-    function startDrag(e, b) {
-      e.preventDefault(); selId = b.id; draw(); const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o;
-      const sx = e.clientX, sy = e.clientY, ox = o.x, oy = o.y; let moved = false;
-      const mv = ev => { o.x = Math.max(-o.w + 2, Math.min(98, ox + (ev.clientX - sx) / scale / 19.2)); o.y = Math.max(-5, Math.min(98, oy + (ev.clientY - sy) / scale / 10.8)); moved = true;
-        t.style.left = o.x * 19.2 + "px"; t.style.top = o.y * 10.8 + "px"; live(b); };
-      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); o.x = +o.x.toFixed(2); o.y = +o.y.toFixed(2); if (moved) save(); };
-      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
-    }
-    function startResize(e, b) {
-      e.preventDefault(); e.stopPropagation(); const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o; const sx = e.clientX, ow = o.w;
-      const mv = ev => { o.w = Math.max(4, Math.min(100, ow + (ev.clientX - sx) / scale / 19.2)); t.style.width = o.w * 19.2 + "px"; live(b); };
-      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); o.w = +o.w.toFixed(2); save(); setTimeout(draw, 250); };
-      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
-    }
-    lay.addEventListener("pointerdown", e => { if (e.target === lay) { selId = null; draw(); } });
-
-    // Free layout on/off. Turning it on freezes every section where the TV currently draws it.
-    freeChk.checked = isFree();
-    freeChk.onchange = () => {
-      if (freeChk.checked) {
-        sc.layout = "free";
-        // Keep the size the TV was actually using (auto layout may have shrunk the text to fit).
-        const k0 = +(Math.max(.5, (parseFloat(iframeDoc && getComputedStyle(iframeDoc.documentElement).getPropertyValue("--fs")) || 1.55) / 1.55)).toFixed(2);
-        // Lay the sections out cleanly in two columns using the sizes the TV is drawing them at.
-        // (The automatic layout flows sections across columns in ways a box can't copy 1:1,
-        // so we start from a tidy, non-overlapping arrangement and let the admin nudge from there.)
-        const pct = (px, axis) => +(px / (axis === "x" ? 19.2 : 10.8)).toFixed(2);
-        const boardR = iframeDoc?.querySelector(".board")?.getBoundingClientRect() || { top: 240, left: 0, width: 1920 };
-        const catEls = sc.categories.map(c => iframeDoc?.querySelector(`.cat[data-cid="${c.id}"]`));
-        const narrow = catEls.map(el => el?.getBoundingClientRect()).find(r => r && r.width < 1100);
-        const lefts = catEls.map(el => el?.getBoundingClientRect().left).filter(v => v != null);
-        const gap = 58, colW = narrow ? narrow.width : (1920 * .935 - gap) / 2, col1x = lefts.length ? Math.min(...lefts) : 58, col2x = col1x + colW + gap;
-        const top0 = boardR.top + 18, colH = 1080 * .965 - top0;
-        const measured = sc.categories.map((c, i) => { const el = catEls[i];
-          const rows = el ? Array.from(el.querySelectorAll(".item")).map(x => x.getBoundingClientRect().height).filter(Boolean) : [];
-          return { h2: el?.querySelector("h2")?.getBoundingClientRect().height || 50, note: el?.querySelector(".note")?.getBoundingClientRect().height || 0,
-            rowH: rows.length ? rows.reduce((s, v) => s + v, 0) / rows.length : 34, n: rows.length }; });
-        // Place at scale f (1 = the size the TV was using). Returns how far down the columns reach.
-        const place = f => {
-          let y1 = top0, y2 = top0;
-          sc.categories.forEach((c, i) => {
-            const m = measured[i], h1 = (m.h2 + m.note + m.n * m.rowH) * f + 30;
-            if (h1 > colH && m.n > 6) {
-              const y = Math.max(y1, y2), h = (m.h2 + m.note + Math.ceil(m.n / 2) * m.rowH) * f + 30;
-              c.box = { x: pct(col1x, "x"), y: pct(y, "y"), w: pct(col2x + colW - col1x, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 2 };
-              y1 = y2 = y + h;
-            } else {
-              const useCol1 = y1 + h1 <= top0 + colH || y1 <= y2, x = useCol1 ? col1x : col2x, y = useCol1 ? y1 : y2;
-              c.box = { x: pct(x, "x"), y: pct(y, "y"), w: pct(colW, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 1 };
-              if (useCol1) y1 = y + h1; else y2 = y + h1;
-            }
-          });
-          return Math.max(y1, y2);
-        };
-        const bottom = place(1);
-        if (bottom > top0 + colH) place(Math.max(.6, (colH / (bottom - top0)) * .97));   // shrink text until it fits
-        if (sc.note) { const el = iframeDoc?.querySelector(".screen-note"); const r = el?.getBoundingClientRect(); sc.noteBox = r ? { x: +(r.left / 19.2).toFixed(2), y: +(r.top / 10.8).toFixed(2), w: +(r.width / 19.2).toFixed(2), k: k0, align: "center" } : { x: 10, y: 92, w: 80, k: 1, align: "center" }; }
-        toast("Free layout on — drag sections anywhere");
-      } else {
-        if (!confirm("Go back to automatic layout? The TV will arrange the sections itself again (your text boxes and photos stay).")) { freeChk.checked = true; return; }
-        sc.layout = "auto"; selId = null; toast("Automatic layout");
-      }
-      save(); setTimeout(draw, 300);
-    };
-    $("#tvText", bg).onclick = () => {
-      const txt = prompt("Text to show on the TV (e.g. “All meals come with a 20 oz drink”):"); if (!txt || !txt.trim()) return;
-      if (!isFree()) { freeChk.checked = true; freeChk.onchange(); }
-      const t = { id: uid(), text: txt.trim(), x: 30, y: 45, w: 40, k: 1.2, align: "center", color: "orange" }; sc.texts.push(t); selId = "text:" + t.id; save(); setTimeout(draw, 300);
-    };
-    const fileInput = $("#tvFile", bg);
-    fileInput.addEventListener("change", async e => {
-      const f = e.target.files[0]; if (!f) return; toast("Uploading photo…", false, 8000);
-      try { const url = await uploadToImgbb(f); const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "" }; sc.images.push(im); selId = im.id; draw(); await save(); toast("Photo added — drag it where you want it"); }
-      catch (err) { toast("Upload failed: " + err.message, true, 5000); }
-      e.target.value = "";
-    });
-    const close = () => { window.removeEventListener("resize", fit); bg.remove(); render(); };
-    $("#tvClose", bg).onclick = close;
-    draw();
-    if (pickFile) fileInput.click();
-  }
 </script>
 </body>
 </html>
