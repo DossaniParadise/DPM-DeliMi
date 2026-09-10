@@ -133,6 +133,13 @@
   .lay .box .rs { position: absolute; right: -24px; bottom: -24px; width: 60px; height: 60px; border-radius: 50%; background: var(--orange); border: 4px solid #000; cursor: nwse-resize; touch-action: none; }
   .lay .box .rs::after { content: "⤡"; color: #000; font-size: 32px; font-weight: 700; display: flex; align-items: center; justify-content: center; height: 100%; }
   .tv-tools { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-top: 1px solid var(--line); flex-wrap: wrap; min-height: 52px; }
+  .lay .box.txt { outline: 2px dashed rgba(243,147,35,.7); outline-offset: 6px; background: rgba(243,147,35,.06); }
+  .lay .box.txt.sel { outline: 4px solid var(--orange); background: rgba(243,147,35,.12); }
+  .lay .box .tag { position: absolute; left: 0; top: -34px; background: var(--orange); color: #000; font-weight: 700; font-size: 22px; padding: 2px 12px; border-radius: 8px; pointer-events: none; text-transform: uppercase; letter-spacing: .05em; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { background: var(--card2); color: var(--ink); border: 0; padding: 6px 10px; font-weight: 700; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--orange); color: #000; }
   .tv-tools input[type=text] { background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 8px 10px; width: 120px; }
 
   .toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); background: #222; color: #fff; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--green); z-index: 60; max-width: 92vw; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
@@ -344,6 +351,7 @@
         </section>`).join("")}
         ${cats.length ? "" : `<div class="empty">Nothing on this TV yet. Tap <b>+ Section</b> below to add a heading like “Breakfast”.</div>`}
       </div>
+      ${sc.layout === "free" ? `<div class="ghostline" data-tvhint="1" style="margin:0 0 .6em">Free layout is on for this TV — positions and sizes are set in “See it on the TV”. Tap here to open it.</div>` : ""}
       <div class="screen-note tap" data-note="1">${sc.note ? esc(sc.note) : `<span style="color:#666;font-weight:400;font-style:italic;font-size:.8em">+ note at the bottom of the TV (optional)</span>`}</div>
       </div>
       ${(sc.images || []).length ? `<div class="photos"><span class="lbl">Photos on this TV — tap to edit, or use “See it on the TV” to move them</span>
@@ -355,6 +363,7 @@
     $$("[data-item]", board).forEach(el => el.onclick = () => openItem(el.dataset.item));
     $$("[data-additem]", board).forEach(el => el.onclick = () => openAddItem(el.dataset.additem));
     $("[data-note]", board).onclick = openNote;
+    $("[data-tvhint]", board) && ($("[data-tvhint]", board).onclick = () => openTV(null));
     $$("[data-img]", board).forEach(el => el.onclick = () => openTV(el.dataset.img));
 
     // Long-press (touch) or drag (mouse) to reorder items and sections.
@@ -542,62 +551,170 @@
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); c.toBlob(b => b ? ok(b) : no(new Error("bad image")), "image/jpeg", q); };
     img.onerror = () => no(new Error("Not an image")); img.src = u; });
 
-  // -------------------------------------- TV view: exact preview + photos --
-  // Shows the real TV page scaled to fit. Photos are drawn on top as draggable
-  // boxes (the TV page hides its own copies via &edit=1). Positions are % of
-  // the TV so they land in the same spot on any screen size.
+  // ------------------------------------------- TV view: exact preview + layout --
+  // Shows the real TV page (iframe) scaled to fit, with draggable boxes drawn on
+  // top. Photos are always free. Sections / note / text boxes become draggable
+  // when the TV is switched to "free layout"; until then the TV lays them out
+  // automatically. All positions are % of the TV, so any screen size matches.
   $("#previewBtn").onclick = () => openTV(null);
   $("#photoBtn").onclick = () => { if (!screen()) return toast("Set up a TV screen first", true); openTV(null, true); };
   function openTV(selectId, pickFile) {
-    const si = S.si; let images = JSON.parse(JSON.stringify(screen()?.images || [])); let selId = selectId || null, scale = 1;
+    const si = S.si;
+    let sc = JSON.parse(JSON.stringify(screen())); sc.images = sc.images || []; sc.texts = sc.texts || [];
+    let selId = selectId || null, scale = 1, iframeDoc = null;
     const bg = document.createElement("div"); bg.className = "tv-bg";
-    bg.innerHTML = `<div class="tv-bar"><span class="info">${esc(S.loc.name || S.locId)} · TV ${si + 1} — this is what the screen shows</span>
-        <label class="btn small">📷 Add photo<input type="file" accept="image/*" id="tvFile"></label>
+    bg.innerHTML = `<div class="tv-bar"><span class="info">${esc(S.loc.name || S.locId)} · TV ${si + 1}</span>
+        <label class="btn small" id="layoutToggle"><input type="checkbox" id="freeChk" style="vertical-align:middle;margin:0 4px 0 0"> Free layout</label>
+        <label class="btn small">📷 Photo<input type="file" accept="image/*" id="tvFile"></label>
+        <button class="btn small" id="tvText">＋ Text</button>
         <a class="btn small" target="_blank" href="index.html?id=${esc(S.locId)}&screen=${si + 1}">Open ↗</a><button class="btn small primary" id="tvClose">Done</button></div>
       <div class="tv-box"><iframe src="index.html?id=${esc(S.locId)}&screen=${si + 1}&preview=1&edit=1"></iframe><div class="lay" id="lay"></div></div>
       <div class="tv-tools" id="tvTools"></div>`;
     document.body.appendChild(bg);
-    const box = $(".tv-box", bg), fr = $("iframe", bg), lay = $("#lay", bg), tools = $("#tvTools", bg);
+    const box = $(".tv-box", bg), fr = $("iframe", bg), lay = $("#lay", bg), tools = $("#tvTools", bg), freeChk = $("#freeChk", bg);
     const fit = () => { scale = Math.min(box.clientWidth / 1920, box.clientHeight / 1080); const l = (box.clientWidth - 1920 * scale) / 2, t = (box.clientHeight - 1080 * scale) / 2;
       for (const el of [fr, lay]) { el.style.transform = `scale(${scale})`; el.style.left = l + "px"; el.style.top = t + "px"; } };
     fit(); window.addEventListener("resize", fit);
-    const save = () => mutate(loc => { loc.screens[si].images = images; });
-    function draw() {
-      lay.innerHTML = images.map(im => `<div class="box ${im.id === selId ? "sel" : ""}" data-id="${esc(im.id)}" style="left:${im.x * 19.2}px;top:${im.y * 10.8}px;width:${im.w * 19.2}px">
-        <img src="${esc(im.url)}" draggable="false" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}${im.id === selId ? `<span class="rs"></span>` : ""}</div>`).join("");
-      $$(".box", lay).forEach(b => { const im = images.find(x => x.id === b.dataset.id); b.addEventListener("pointerdown", e => e.target.classList.contains("rs") ? startResize(e, im) : startDrag(e, im)); });
-      const im = images.find(x => x.id === selId);
-      tools.innerHTML = im ? `<span class="info">Price bubble:</span><input type="text" id="tvLabel" value="${esc(im.label || "")}" placeholder="$2.49">
-          <button class="btn small" id="tvFront">Bring to front</button><button class="btn small danger" id="tvDel">Remove photo</button>`
-        : `<span class="info">${images.length ? "Tap a photo to select it. Drag to move, orange corner to resize." : "Tap “Add photo” to put a picture on this TV."}</span>`;
-      if (im) {
-        $("#tvLabel", tools).onchange = e => { im.label = e.target.value.trim(); draw(); save(); };
-        $("#tvFront", tools).onclick = () => { images = images.filter(x => x !== im).concat([im]); draw(); save(); };
-        $("#tvDel", tools).onclick = () => { if (!confirm("Remove this photo?")) return; images = images.filter(x => x !== im); selId = null; draw(); save(); };
+    fr.addEventListener("load", () => { try { iframeDoc = fr.contentDocument; new MutationObserver(() => setTimeout(draw, 50)).observe(iframeDoc.body, { childList: true, subtree: true }); } catch (e) {} setTimeout(draw, 300); });
+
+    const isFree = () => sc.layout === "free";
+    const save = () => mutate(loc => { const s = loc.screens[si]; s.layout = sc.layout || "auto"; s.images = sc.images; s.texts = sc.texts; s.noteBox = sc.noteBox || null;
+      s.categories.forEach(c => { const src = sc.categories.find(x => x.id === c.id); if (src && src.box) c.box = src.box; }); });
+
+    // Every draggable thing on the TV, normalised to {id, kind, get(): {x,y,w,k,align}, set(...)}
+    function boxes() {
+      const list = sc.images.map(im => ({ id: im.id, kind: "image", o: im }));
+      if (isFree()) {
+        sc.categories.forEach(c => { c.box = c.box || { x: 5, y: 25, w: 42, k: 1, align: "center" }; list.push({ id: "cat:" + c.id, kind: "cat", o: c.box, cat: c }); });
+        if (sc.note) { sc.noteBox = sc.noteBox || { x: 10, y: 92, w: 80, k: 1, align: "center" }; list.push({ id: "note", kind: "note", o: sc.noteBox }); }
+        sc.texts.forEach(t => list.push({ id: "text:" + t.id, kind: "text", o: t, text: t }));
       }
+      return list;
     }
-    function startDrag(e, im) {
-      e.preventDefault(); selId = im.id; draw(); const t = $(`.box[data-id="${im.id}"]`, lay);
-      const sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y; let moved = false;
-      const mv = ev => { im.x = Math.max(-im.w + 2, Math.min(98, ox + (ev.clientX - sx) / scale / 19.2)); im.y = Math.max(-5, Math.min(97, oy + (ev.clientY - sy) / scale / 10.8)); moved = true; t.style.left = im.x * 19.2 + "px"; t.style.top = im.y * 10.8 + "px"; };
-      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); im.x = +im.x.toFixed(2); im.y = +im.y.toFixed(2); if (moved) save(); };
+    // Rendered height of a text-ish box comes from the live TV page.
+    function liveEl(b) {
+      if (!iframeDoc) return null;
+      if (b.kind === "cat") return iframeDoc.querySelector(`.cat[data-cid="${b.cat.id}"]`);
+      if (b.kind === "note") return iframeDoc.querySelector(".screen-note.free");
+      if (b.kind === "text") return iframeDoc.querySelector(`.ftext[data-tid="${b.text.id}"]`);
+      return null;
+    }
+    function draw() {
+      const bs = boxes();
+      lay.innerHTML = bs.map(b => {
+        const o = b.o, sel = b.id === selId;
+        if (b.kind === "image") return `<div class="box img ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px">
+          <img src="${esc(o.url)}" draggable="false" alt="">${o.label ? `<span class="plabel">${esc(o.label)}</span>` : ""}${sel ? `<span class="rs"></span>` : ""}</div>`;
+        const el = liveEl(b); const h = el ? el.getBoundingClientRect().height : 60;
+        return `<div class="box txt ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px;height:${h}px">
+          <span class="tag">${b.kind === "cat" ? esc(b.cat.name) : b.kind === "note" ? "note" : "text"}</span>${sel ? `<span class="rs"></span>` : ""}</div>`;
+      }).join("");
+      $$(".box", lay).forEach(el => { const b = bs.find(x => x.id === el.dataset.id); el.addEventListener("pointerdown", e => e.target.classList.contains("rs") ? startResize(e, b) : startDrag(e, b)); });
+      drawTools(bs);
+    }
+    function drawTools(bs) {
+      const b = bs.find(x => x.id === selId);
+      if (!b) { tools.innerHTML = `<span class="info">${isFree() ? "Tap a section, photo or text to select it. Drag to move, orange corner to resize." : "Photos can be dragged. Turn on <b>Free layout</b> to move and resize the sections and text too."}</span>`; return; }
+      const o = b.o;
+      const alignBtns = b.kind === "image" ? "" : `<span class="seg"><button data-al="left" class="${(o.align || "center") === "left" ? "on" : ""}">⇤</button><button data-al="center" class="${(o.align || "center") === "center" ? "on" : ""}">☰</button><button data-al="right" class="${(o.align || "center") === "right" ? "on" : ""}">⇥</button></span>
+        <span class="seg"><button data-k="-1">A−</button><button data-k="1">A+</button></span>`;
+      tools.innerHTML = `${b.kind === "image" ? `<span class="info">Price bubble:</span><input type="text" id="tvLabel" value="${esc(o.label || "")}" placeholder="$2.49">` : ""}
+        ${b.kind === "text" ? `<button class="btn small" id="tvEditText">✎ Edit text</button><span class="seg"><button data-col="white" class="${(o.color || "white") === "white" ? "on" : ""}">White</button><button data-col="orange" class="${o.color === "orange" ? "on" : ""}">Orange</button></span>` : ""}
+        ${b.kind === "cat" ? `<button class="btn small" id="tvEditCat">✎ Edit section</button><span class="seg"><button data-cols="1" class="${o.cols !== 2 ? "on" : ""}">1 col</button><button data-cols="2" class="${o.cols === 2 ? "on" : ""}">2 cols</button></span>` : ""}
+        ${alignBtns}
+        <button class="btn small" id="tvCenter">Center on TV</button>
+        ${b.kind === "image" ? `<button class="btn small" id="tvFront">Bring to front</button>` : ""}
+        ${b.kind === "image" || b.kind === "text" ? `<button class="btn small danger" id="tvDel">Remove</button>` : ""}`;
+      $$("[data-al]", tools).forEach(x => x.onclick = () => { o.align = x.dataset.al; draw(); save(); });
+      $$("[data-k]", tools).forEach(x => x.onclick = () => { o.k = +Math.max(.5, Math.min(2.5, (o.k || 1) + .1 * +x.dataset.k)).toFixed(2); save(); setTimeout(draw, 250); });
+      $$("[data-col]", tools).forEach(x => x.onclick = () => { o.color = x.dataset.col; draw(); save(); });
+      $$("[data-cols]", tools).forEach(x => x.onclick = () => { o.cols = +x.dataset.cols; save(); setTimeout(draw, 250); });
+      $("#tvCenter", tools).onclick = () => { o.x = +((100 - o.w) / 2).toFixed(2); draw(); save(); };
+      $("#tvLabel", tools) && ($("#tvLabel", tools).onchange = e => { o.label = e.target.value.trim(); draw(); save(); });
+      $("#tvFront", tools) && ($("#tvFront", tools).onclick = () => { sc.images = sc.images.filter(x => x !== o).concat([o]); draw(); save(); });
+      $("#tvDel", tools) && ($("#tvDel", tools).onclick = () => { if (!confirm("Remove this?")) return; if (b.kind === "image") sc.images = sc.images.filter(x => x !== o); else sc.texts = sc.texts.filter(x => x !== o); selId = null; draw(); save(); });
+      $("#tvEditText", tools) && ($("#tvEditText", tools).onclick = () => { const t = prompt("Text to show on the TV:", o.text); if (t != null) { o.text = t.trim(); draw(); save(); } });
+      $("#tvEditCat", tools) && ($("#tvEditCat", tools).onclick = () => { close(); openCategory(b.cat.id); });
+    }
+    function live(b) { const el = liveEl(b); if (!el) return; el.style.left = b.o.x + "%"; el.style.top = b.o.y + "%"; el.style.width = b.o.w + "%"; }
+    function startDrag(e, b) {
+      e.preventDefault(); selId = b.id; draw(); const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o;
+      const sx = e.clientX, sy = e.clientY, ox = o.x, oy = o.y; let moved = false;
+      const mv = ev => { o.x = Math.max(-o.w + 2, Math.min(98, ox + (ev.clientX - sx) / scale / 19.2)); o.y = Math.max(-5, Math.min(98, oy + (ev.clientY - sy) / scale / 10.8)); moved = true;
+        t.style.left = o.x * 19.2 + "px"; t.style.top = o.y * 10.8 + "px"; live(b); };
+      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); o.x = +o.x.toFixed(2); o.y = +o.y.toFixed(2); if (moved) save(); };
       window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
     }
-    function startResize(e, im) {
-      e.preventDefault(); e.stopPropagation(); const t = $(`.box[data-id="${im.id}"]`, lay); const sx = e.clientX, ow = im.w;
-      const mv = ev => { im.w = Math.max(4, Math.min(80, ow + (ev.clientX - sx) / scale / 19.2)); t.style.width = im.w * 19.2 + "px"; };
-      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); im.w = +im.w.toFixed(2); save(); };
+    function startResize(e, b) {
+      e.preventDefault(); e.stopPropagation(); const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o; const sx = e.clientX, ow = o.w;
+      const mv = ev => { o.w = Math.max(4, Math.min(100, ow + (ev.clientX - sx) / scale / 19.2)); t.style.width = o.w * 19.2 + "px"; live(b); };
+      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); o.w = +o.w.toFixed(2); save(); setTimeout(draw, 250); };
       window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
     }
     lay.addEventListener("pointerdown", e => { if (e.target === lay) { selId = null; draw(); } });
+
+    // Free layout on/off. Turning it on freezes every section where the TV currently draws it.
+    freeChk.checked = isFree();
+    freeChk.onchange = () => {
+      if (freeChk.checked) {
+        sc.layout = "free";
+        // Keep the size the TV was actually using (auto layout may have shrunk the text to fit).
+        const k0 = +(Math.max(.5, (parseFloat(iframeDoc && getComputedStyle(iframeDoc.documentElement).getPropertyValue("--fs")) || 1.55) / 1.55)).toFixed(2);
+        // Lay the sections out cleanly in two columns using the sizes the TV is drawing them at.
+        // (The automatic layout flows sections across columns in ways a box can't copy 1:1,
+        // so we start from a tidy, non-overlapping arrangement and let the admin nudge from there.)
+        const pct = (px, axis) => +(px / (axis === "x" ? 19.2 : 10.8)).toFixed(2);
+        const boardR = iframeDoc?.querySelector(".board")?.getBoundingClientRect() || { top: 240, left: 0, width: 1920 };
+        const catEls = sc.categories.map(c => iframeDoc?.querySelector(`.cat[data-cid="${c.id}"]`));
+        const narrow = catEls.map(el => el?.getBoundingClientRect()).find(r => r && r.width < 1100);
+        const lefts = catEls.map(el => el?.getBoundingClientRect().left).filter(v => v != null);
+        const gap = 58, colW = narrow ? narrow.width : (1920 * .935 - gap) / 2, col1x = lefts.length ? Math.min(...lefts) : 58, col2x = col1x + colW + gap;
+        const top0 = boardR.top + 18, colH = 1080 * .965 - top0;
+        const measured = sc.categories.map((c, i) => { const el = catEls[i];
+          const rows = el ? Array.from(el.querySelectorAll(".item")).map(x => x.getBoundingClientRect().height).filter(Boolean) : [];
+          return { h2: el?.querySelector("h2")?.getBoundingClientRect().height || 50, note: el?.querySelector(".note")?.getBoundingClientRect().height || 0,
+            rowH: rows.length ? rows.reduce((s, v) => s + v, 0) / rows.length : 34, n: rows.length }; });
+        // Place at scale f (1 = the size the TV was using). Returns how far down the columns reach.
+        const place = f => {
+          let y1 = top0, y2 = top0;
+          sc.categories.forEach((c, i) => {
+            const m = measured[i], h1 = (m.h2 + m.note + m.n * m.rowH) * f + 30;
+            if (h1 > colH && m.n > 6) {
+              const y = Math.max(y1, y2), h = (m.h2 + m.note + Math.ceil(m.n / 2) * m.rowH) * f + 30;
+              c.box = { x: pct(col1x, "x"), y: pct(y, "y"), w: pct(col2x + colW - col1x, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 2 };
+              y1 = y2 = y + h;
+            } else {
+              const useCol1 = y1 + h1 <= top0 + colH || y1 <= y2, x = useCol1 ? col1x : col2x, y = useCol1 ? y1 : y2;
+              c.box = { x: pct(x, "x"), y: pct(y, "y"), w: pct(colW, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 1 };
+              if (useCol1) y1 = y + h1; else y2 = y + h1;
+            }
+          });
+          return Math.max(y1, y2);
+        };
+        const bottom = place(1);
+        if (bottom > top0 + colH) place(Math.max(.6, (colH / (bottom - top0)) * .97));   // shrink text until it fits
+        if (sc.note) { const el = iframeDoc?.querySelector(".screen-note"); const r = el?.getBoundingClientRect(); sc.noteBox = r ? { x: +(r.left / 19.2).toFixed(2), y: +(r.top / 10.8).toFixed(2), w: +(r.width / 19.2).toFixed(2), k: k0, align: "center" } : { x: 10, y: 92, w: 80, k: 1, align: "center" }; }
+        toast("Free layout on — drag sections anywhere");
+      } else {
+        if (!confirm("Go back to automatic layout? The TV will arrange the sections itself again (your text boxes and photos stay).")) { freeChk.checked = true; return; }
+        sc.layout = "auto"; selId = null; toast("Automatic layout");
+      }
+      save(); setTimeout(draw, 300);
+    };
+    $("#tvText", bg).onclick = () => {
+      const txt = prompt("Text to show on the TV (e.g. “All meals come with a 20 oz drink”):"); if (!txt || !txt.trim()) return;
+      if (!isFree()) { freeChk.checked = true; freeChk.onchange(); }
+      const t = { id: uid(), text: txt.trim(), x: 30, y: 45, w: 40, k: 1.2, align: "center", color: "orange" }; sc.texts.push(t); selId = "text:" + t.id; save(); setTimeout(draw, 300);
+    };
     const fileInput = $("#tvFile", bg);
     fileInput.addEventListener("change", async e => {
       const f = e.target.files[0]; if (!f) return; toast("Uploading photo…", false, 8000);
-      try { const url = await uploadToImgbb(f); const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "" }; images.push(im); selId = im.id; draw(); await save(); toast("Photo added — drag it where you want it"); }
+      try { const url = await uploadToImgbb(f); const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "" }; sc.images.push(im); selId = im.id; draw(); await save(); toast("Photo added — drag it where you want it"); }
       catch (err) { toast("Upload failed: " + err.message, true, 5000); }
       e.target.value = "";
     });
-    $("#tvClose", bg).onclick = () => { window.removeEventListener("resize", fit); bg.remove(); render(); };
+    const close = () => { window.removeEventListener("resize", fit); bg.remove(); render(); };
+    $("#tvClose", bg).onclick = close;
     draw();
     if (pickFile) fileInput.click();
   }
