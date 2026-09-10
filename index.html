@@ -65,6 +65,27 @@
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.6vw; text-align: center; line-height: 1; padding: .3vw; }
   body.edit .fimg { display: none; }
 
+  /* Free layout: sections, note and text boxes are placed by the admin (x/y/w in % of the TV, k = size multiplier). */
+  .free { position: fixed; z-index: 3; --k: 1; }
+  .cat.free { margin: 0; break-inside: auto; }
+  .cat.free[data-cols="2"] { column-count: 2; column-gap: 3vw; }
+  .cat.free[data-cols="2"] h2, .cat.free[data-cols="2"] .note { column-span: all; }
+  .cat.free h2 { font-size: calc(var(--fs) * 1.55 * var(--k)); }
+  .cat.free .note { font-size: calc(var(--fs) * .85 * var(--k)); }
+  .cat.free .item { font-size: calc(var(--fs) * var(--k)); }
+  .cat.free[data-align="left"] h2, .cat.free[data-align="left"] .note { text-align: left; }
+  .cat.free[data-align="right"] h2, .cat.free[data-align="right"] .note { text-align: right; }
+  .screen-note.free { margin: 0; font-size: calc(var(--fs) * 1.05 * var(--k)); }
+  .ftext { font-size: calc(var(--fs) * 1.1 * var(--k)); font-weight: 600; color: var(--ink); line-height: 1.25; white-space: pre-wrap; }
+  .ftext[data-color="orange"] { color: var(--orange); }
+  .ftext[data-color="dim"] { color: var(--ink-dim); }
+  .ftext[data-align="center"], .screen-note[data-align="center"] { text-align: center; }
+  .ftext[data-align="right"], .screen-note[data-align="right"] { text-align: right; }
+  .ftext[data-align="left"], .screen-note[data-align="left"] { text-align: left; }
+  .cat.free .item .name { text-align: left; } .cat.free .item .price { text-align: right; }
+  body.free-layout .board::before { display: none; }
+  body.free-layout .rail { position: fixed; left: 0; top: 22vh; bottom: 0; width: 1.2vw; background: var(--orange); }
+
   .status { position: fixed; left: 1.6vw; bottom: .5vh; font-size: .75vw; color: #555; }
   .status.offline { color: #b36; }
   .admin-link { position: fixed; right: .6vw; bottom: .5vh; font-size: .8vw; color: #444; text-decoration: none; opacity: .7; }
@@ -224,23 +245,31 @@
       return;
     }
     appEl.className = "";
-    appEl.innerHTML = `
-      <div class="hdr"><img src="${esc(locationDoc.logoUrl || LOGO_URL)}" alt="Paradise Deli" onerror="this.parentNode.classList.add('nologo')">
-        <div class="textlogo">PARADISE<small>DELI</small></div>
-        <span class="store">${esc(locationDoc.name || locId)}</span></div>
-      <div class="board"><div class="menu">
-        ${screen.categories.map(cat => { const items = cat.items.filter(it => !it.hidden && !it.missing); return `<section class="cat ${items.length > 14 ? "wide" : ""}">
+    const free = screen.layout === "free";
+    document.body.classList.toggle("free-layout", free);
+    const boxStyle = b => `left:${+(b?.x ?? 0)}%;top:${+(b?.y ?? 0)}%;width:${+(b?.w ?? 40)}%;--k:${+(b?.k || 1)}`;
+    const catHtml = cat => { const items = cat.items.filter(it => !it.hidden && !it.missing); const b = free ? (cat.box || {}) : null;
+      return `<section class="cat ${free ? "free" : (items.length > 14 ? "wide" : "")}" data-cid="${esc(cat.id)}" ${free ? `style="${boxStyle(b)}" data-align="${esc(b.align || "center")}" data-cols="${b.cols === 2 ? 2 : 1}"` : ""}>
           <h2>${esc(cat.name)}</h2>
           ${cat.note ? `<p class="note">${esc(cat.note)}</p>` : ""}
           ${items.map(it => `<div class="item">
             <span class="name">${esc(it.name)}${it.description ? `<span class="desc">${esc(it.description)}</span>` : ""}</span>
             <span class="dots"></span><span class="price">${esc(it.price)}</span></div>`).join("")}
-        </section>`; }).join("")}
-      </div>${screen.note ? `<div class="screen-note">${esc(screen.note)}</div>` : ""}</div>
+        </section>`; };
+    appEl.innerHTML = `
+      <div class="hdr"><img src="${esc(locationDoc.logoUrl || LOGO_URL)}" alt="Paradise Deli" onerror="this.parentNode.classList.add('nologo')">
+        <div class="textlogo">PARADISE<small>DELI</small></div>
+        <span class="store">${esc(locationDoc.name || locId)}</span></div>
+      ${free ? `<div class="rail"></div><div class="board"></div>
+        ${screen.categories.map(catHtml).join("")}
+        ${screen.note ? `<div class="screen-note free" data-note="1" style="${boxStyle(screen.noteBox || { x: 10, y: 92, w: 80 })}" data-align="${esc(screen.noteBox?.align || "center")}">${esc(screen.note)}</div>` : ""}
+        ${(screen.texts || []).map(t => `<div class="ftext free" data-tid="${esc(t.id)}" style="${boxStyle(t)}" data-align="${esc(t.align || "center")}" data-color="${esc(t.color || "white")}">${esc(t.text)}</div>`).join("")}`
+      : `<div class="board"><div class="menu">${screen.categories.map(catHtml).join("")}</div>
+        ${screen.note ? `<div class="screen-note">${esc(screen.note)}</div>` : ""}</div>`}
       ${(screen.images || []).map(im => `<div class="fimg" style="left:${+im.x || 0}%;top:${+im.y || 0}%;width:${+im.w || 15}%">
         <img src="${esc(im.url)}" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`).join("")}`;
     showStatus(`Updated ${fmtTime()}${lastFromCache ? " · showing offline copy" : ""}`, lastFromCache);
-    fitToScreen();
+    if (free) document.documentElement.style.setProperty("--fs", "1.55vw"); else fitToScreen();
   }
 
   // Shrink the base font until nothing is clipped (kiosk = no scrolling).
