@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
 <title>Paradise Deli · Menu Admin</title>
@@ -122,7 +123,7 @@
 </head>
 <body>
   <div class="top">
-    <img src="assets/logo.png" alt="Paradise Deli">
+    <img src="assets/logo.png" alt="Paradise Deli" onerror="this.style.display='none'">
     <b>Menu Admin</b>
     <div class="who" id="who"></div>
     <button class="btn small hidden" id="logoutBtn" style="white-space:nowrap">Log out</button>
@@ -162,13 +163,99 @@
   <div id="toastHost"></div>
 
 <script type="module">
-  import { db, auth, $, $$, esc, uid, slug, storeSort, resolveItem, fetchAlignment, allowedLocationsFor }
-    from "./common.js";
-  import { IMGBB_API_KEY } from "./config.js";
-  import { signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  // Self-contained: Firebase config + helpers live in this file (no common.js / config.js needed).
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-  import { doc, getDoc, getDocs, setDoc, updateDoc, collection, onSnapshot, writeBatch, serverTimestamp }
+  import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, onSnapshot, writeBatch, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDkOgww069J3JxBmV8j-EUyl88goy5QtOY",
+    authDomain: "dpm-menu-manager.firebaseapp.com",
+    projectId: "dpm-menu-manager",
+    storageBucket: "dpm-menu-manager.firebasestorage.app",
+    messagingSenderId: "246192582837",
+    appId: "1:246192582837:web:a3101bfc960d8cd8f00efc",
+  };
+  // FindMi alignment API — which stores a director / district manager owns (matched by email).
+  const ALIGNMENT_API_URL = "https://alignment-api-khaki.vercel.app/api/dpm-alignment";
+  // imgbb — item photo uploads.
+  const IMGBB_API_KEY = "b733862d15744e2bfaa4329d122f4ba0";
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  // ------------------------------------------------------------- Helpers --
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function uid(len = 8) {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789"; let s = "";
+    const arr = new Uint8Array(len); crypto.getRandomValues(arr);
+    for (const b of arr) s += chars[b % chars.length]; return s;
+  }
+  // Stable catalog id from an item name: "Corn Dog W/ Cheese" -> "corn-dog-w-cheese"
+  function slug(name) {
+    return String(name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || uid();
+  }
+  function storeSort(a, b) {
+    const na = /PQS(\d+)/.exec(a), nb = /PQS(\d+)/.exec(b);
+    if (na && nb) return +na[1] - +nb[1];
+    if (na) return -1; if (nb) return 1;
+    return a.localeCompare(b);
+  }
+  // Flatten one screen entry: catalog ref → real item, with store-only price applied.
+  function resolveItem(entry, catalog) {
+    if (entry.custom) {
+      return { id: entry.id, custom: true, name: entry.name || "", price: entry.price || "", description: entry.description || "",
+        photoUrl: entry.photoUrl || "", hidden: !!entry.hidden, override: false, missing: false, entry };
+    }
+    const base = catalog?.[entry.itemId];
+    if (!base) return { id: entry.id, itemId: entry.itemId, name: `(missing item ${entry.itemId})`, price: "", description: "", photoUrl: "",
+      hidden: !!entry.hidden, override: false, missing: true, entry };
+    const override = entry.price != null && entry.price !== "" && entry.price !== base.price;
+    return { id: entry.id, itemId: entry.itemId, name: base.name, price: override ? entry.price : (base.price || ""), basePrice: base.price || "",
+      description: entry.description ?? base.description ?? "", photoUrl: entry.photoUrl || base.photoUrl || "",
+      hidden: !!entry.hidden, override, missing: false, entry };
+  }
+  // ---------------------------------------------------- FindMi alignment --
+  function locationIdFromRestaurant(rest) {
+    if (!rest) return null;
+    const division = String(rest.division || "").toLowerCase();
+    const name = String(rest.storeName || "");
+    const num = String(rest.storeNumber || "").replace("#", "").trim();
+    if (/scarborough travel stop/i.test(name) || /^sts$/i.test(num)) return "STS";
+    if (/paradise quick stop/i.test(name)) { const m = /#\s*0*(\d+)/.exec(name); if (m) return "PQS" + parseInt(m[1], 10); }
+    if (division === "c-store" && /^\d+$/.test(num)) return "PQS" + parseInt(num, 10);
+    return null;
+  }
+  async function fetchAlignment() {
+    const res = await fetch(ALIGNMENT_API_URL + (ALIGNMENT_API_URL.includes("?") ? "&" : "?") + "_=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("Alignment API " + res.status);
+    return res.json();
+  }
+  // Stores this person manages per FindMi: match email (or optional matchName) against directors + areaCoaches.
+  function allowedLocationsFor(alignment, email, matchName) {
+    const directors = alignment?.directors || {}, coaches = alignment?.areaCoaches || {}, restaurants = alignment?.restaurants || {};
+    const em = String(email || "").trim().toLowerCase(), nm = String(matchName || "").trim().toLowerCase();
+    const hit = p => (p?.email && String(p.email).trim().toLowerCase() === em) || (nm && p?.name && String(p.name).trim().toLowerCase() === nm);
+    const dirIds = Object.keys(directors).filter(id => hit(directors[id]));
+    const coachIds = Object.keys(coaches).filter(id => hit(coaches[id]));
+    const personNames = [...dirIds.map(id => directors[id].name), ...coachIds.map(id => coaches[id].name)];
+    const ids = new Set();
+    for (const r of Object.values(restaurants)) {
+      const locId = locationIdFromRestaurant(r); if (!locId) continue;
+      let coachList = [];
+      if (Array.isArray(r.assignedAreaCoachIds)) coachList = r.assignedAreaCoachIds;
+      else if (r.assignedAreaCoachIds && typeof r.assignedAreaCoachIds === "object") coachList = Object.values(r.assignedAreaCoachIds);
+      else if (r.assignedAreaCoachId) coachList = [r.assignedAreaCoachId];
+      if (dirIds.includes(r.assignedDirectorId) || coachList.some(c => coachIds.includes(c))) ids.add(locId);
+    }
+    return { ids: [...ids].sort(storeSort), personNames };
+  }
 
   // ---------------------------------------------------------------- State --
   const S = {
@@ -263,7 +350,7 @@
 
     // 5. Store picker.
     const sel = $("#storeSel");
-    sel.innerHTML = S.allowed.map(id => `<option value="${esc(id)}">${esc(S.allLocations[id]?.name || id)} (${esc(id)})</option>`).join("");
+    sel.innerHTML = S.allowed.map(id => `<option value="${esc(id)}">${esc(S.allLocations[id]?.name || id)} (${esc(id)})${S.allLocations[id]?.active === false ? " · inactive" : ""}</option>`).join("");
     const want = (params.get("id") || localStorage.getItem("admin.locId") || "").toUpperCase();
     selectStore(S.allowed.includes(want) ? want : S.allowed[0], parseInt(params.get("screen") || "1", 10) - 1);
     sel.onchange = () => selectStore(sel.value, 0);
@@ -279,6 +366,7 @@
     S.unsubLoc?.();
     S.unsubLoc = onSnapshot(doc(db, "locations", id), snap => {
       S.loc = snap.exists() ? snap.data() : { name: id, screens: [] };
+      S.allLocations[id] = S.loc;
       if (S.screenIdx >= (S.loc.screens || []).length) S.screenIdx = Math.max(0, (S.loc.screens || []).length - 1);
       renderTabs(); renderScreen();
     });
@@ -312,6 +400,7 @@
         <input class="title" id="scrTitle" value="${esc(screen.title || "")}" placeholder="Screen title (admin only)">
         <input id="scrNote" value="${esc(screen.note || "")}" placeholder="Footer note shown on the TV (optional)">
         <div class="meta">TV URL: <a href="index.html?id=${esc(S.locId)}&screen=${S.screenIdx + 1}" target="_blank">index.html?id=${esc(S.locId)}&screen=${S.screenIdx + 1}</a></div>
+        <div class="switch" style="padding-bottom:0"><span>Store active <small class="info">(shown in the store picker)</small></span><input type="checkbox" id="locActive" ${S.loc.active !== false ? "checked" : ""}></div>
       </div>
       <div id="catList">
       ${cats.map(cat => `<div class="cat" data-cid="${esc(cat.id)}">
@@ -337,6 +426,7 @@
     // Screen title / note edits (save on change)
     $("#scrTitle").onchange = e => mutate(loc => { loc.screens[S.screenIdx].title = e.target.value.trim(); }, "Screen title saved");
     $("#scrNote").onchange = e => mutate(loc => { loc.screens[S.screenIdx].note = e.target.value.trim(); }, "Footer note saved");
+    $("#locActive").onchange = e => mutate(loc => { loc.active = e.target.checked; }, e.target.checked ? "Store is now active" : "Store hidden from picker");
 
     // Buttons
     $$("[data-edit-cat]").forEach(b => b.onclick = () => openCategorySheet(b.dataset.editCat));
