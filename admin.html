@@ -115,6 +115,19 @@
   .preview-box { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   .preview-box iframe { width: 1920px; height: 1080px; border: 0; transform-origin: top left; position: absolute; left: 0; top: 0; background: #000; }
 
+  /* Image layout editor */
+  .lay-bar input[type=file] { display: none; }
+  .lay { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: top left; }
+  .lay .box { position: absolute; touch-action: none; cursor: move; outline: 3px dashed rgba(243,147,35,.55); outline-offset: 4px; }
+  .lay .box.sel { outline: 4px solid var(--orange); }
+  .lay .box img { display: block; width: 100%; height: auto; border-radius: 15px; pointer-events: none; user-select: none; box-shadow: 0 8px 30px rgba(0,0,0,.65); }
+  .lay .box .plabel { position: absolute; left: -42px; top: 50%; transform: translateY(-50%); width: 115px; height: 115px; border-radius: 50%; background: var(--orange); color: #000;
+    border: 5px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 31px; pointer-events: none; text-align: center; line-height: 1; }
+  .lay .box .rs { position: absolute; right: -22px; bottom: -22px; width: 56px; height: 56px; border-radius: 50%; background: var(--orange); border: 4px solid #000; cursor: nwse-resize; touch-action: none; }
+  .lay .box .rs::after { content: "⤡"; color: #000; font-size: 30px; font-weight: 700; display: flex; align-items: center; justify-content: center; height: 100%; }
+  .lay-tools { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .lay-tools input[type=text] { background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 8px 10px; width: 130px; }
+
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #222; color: #fff; padding: 12px 16px; border-radius: 12px;
     border: 1px solid var(--line); z-index: 60; max-width: 92vw; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
   .toast.ok { border-color: var(--green); } .toast.bad { border-color: var(--red); }
@@ -153,6 +166,7 @@
     <div class="tabs" id="tabs"></div>
     <div class="toolbar">
       <button class="btn small primary" id="previewBtn">▶ Preview TV</button>
+      <button class="btn small" id="imagesBtn">🖼 Images</button>
       <button class="btn small" id="addCatBtn">+ Category</button>
       <button class="btn small" id="delScreenBtn">Delete screen</button>
     </div>
@@ -691,6 +705,97 @@
       img.onerror = () => reject(new Error("Not an image"));
       img.src = url;
     });
+  }
+
+  // --------------------------------------------------------- Image editor --
+  // Floating images live on the screen doc: screens[i].images = [{id,url,x,y,w,label}]
+  // x/y/w are percentages of the TV, so the same layout works on any TV size.
+  // The editor shows the live TV page (with its own images hidden via &edit=1)
+  // underneath, and draws draggable boxes on top at the same scale.
+  $("#imagesBtn").onclick = openImageEditor;
+  function openImageEditor() {
+    if (!S.loc?.screens?.[S.screenIdx]) return toast("Add a screen first", "bad");
+    const screenIdx = S.screenIdx;
+    let images = JSON.parse(JSON.stringify(S.loc.screens[screenIdx].images || []));
+    let selId = null, scale = 1;
+
+    const bg = document.createElement("div"); bg.className = "preview-bg";
+    bg.innerHTML = `<div class="preview-bar lay-bar"><span class="info">Images · ${esc(S.allLocations[S.locId]?.name || S.locId)} · Screen ${screenIdx + 1}</span>
+        <label class="btn small primary">+ Add image<input type="file" accept="image/*" id="layFile"></label>
+        <button class="btn small" id="layDone">Done</button></div>
+      <div class="preview-box"><iframe src="index.html?id=${esc(S.locId)}&screen=${screenIdx + 1}&preview=1&edit=1"></iframe><div class="lay" id="lay"></div></div>
+      <div class="lay-tools" id="layTools"><span class="info">Drag an image to move it. Drag the orange corner to resize. Tap an image to edit its price badge.</span></div>`;
+    document.body.appendChild(bg);
+    const box = $(".preview-box", bg), fr = $("iframe", bg), lay = $("#lay", bg), tools = $("#layTools", bg);
+
+    const fit = () => {
+      scale = Math.min(box.clientWidth / 1920, box.clientHeight / 1080);
+      const left = (box.clientWidth - 1920 * scale) / 2, top = (box.clientHeight - 1080 * scale) / 2;
+      for (const el of [fr, lay]) { el.style.transform = `scale(${scale})`; el.style.left = left + "px"; el.style.top = top + "px"; }
+    };
+    fit(); window.addEventListener("resize", fit);
+
+    const save = () => mutate(loc => { loc.screens[screenIdx].images = images; }, null);
+
+    function draw() {
+      lay.innerHTML = images.map(im => `<div class="box ${im.id === selId ? "sel" : ""}" data-id="${esc(im.id)}"
+          style="left:${im.x * 19.2}px;top:${im.y * 10.8}px;width:${im.w * 19.2}px">
+          <img src="${esc(im.url)}" draggable="false" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}
+          ${im.id === selId ? `<span class="rs"></span>` : ""}</div>`).join("");
+      $$(".box", lay).forEach(b => {
+        const im = images.find(x => x.id === b.dataset.id);
+        b.addEventListener("pointerdown", e => {
+          if (e.target.classList.contains("rs")) return startResize(e, im);
+          startDrag(e, im, b);
+        });
+      });
+      drawTools();
+    }
+    function drawTools() {
+      const im = images.find(x => x.id === selId);
+      if (!im) { tools.innerHTML = `<span class="info">${images.length ? "Tap an image to select it. " : ""}Drag to move · orange corner to resize.</span>`; return; }
+      tools.innerHTML = `<span class="info">Price badge:</span><input type="text" id="layLabel" value="${esc(im.label || "")}" placeholder="$2.49 (optional)">
+        <button class="btn small" id="layFront">Bring to front</button><button class="btn small danger" id="layDel">Remove image</button>`;
+      $("#layLabel", tools).onchange = e => { im.label = e.target.value.trim(); draw(); save(); };
+      $("#layFront", tools).onclick = () => { images = images.filter(x => x !== im).concat([im]); draw(); save(); };
+      $("#layDel", tools).onclick = () => { if (!confirm("Remove this image from the screen?")) return; images = images.filter(x => x !== im); selId = null; draw(); save(); };
+    }
+    function startDrag(e, im, el) {
+      e.preventDefault(); selId = im.id; draw();
+      const target = $(`.box[data-id="${im.id}"]`, lay);
+      const sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y; let moved = false;
+      const move = ev => {
+        const dx = (ev.clientX - sx) / scale / 19.2, dy = (ev.clientY - sy) / scale / 10.8;
+        im.x = Math.max(-im.w + 2, Math.min(98, ox + dx)); im.y = Math.max(-5, Math.min(97, oy + dy)); moved = true;
+        target.style.left = im.x * 19.2 + "px"; target.style.top = im.y * 10.8 + "px";
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
+        im.x = +im.x.toFixed(2); im.y = +im.y.toFixed(2); if (moved) save(); };
+      window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+    }
+    function startResize(e, im) {
+      e.preventDefault(); e.stopPropagation();
+      const target = $(`.box[data-id="${im.id}"]`, lay);
+      const sx = e.clientX, ow = im.w;
+      const move = ev => { im.w = Math.max(4, Math.min(80, ow + (ev.clientX - sx) / scale / 19.2)); target.style.width = im.w * 19.2 + "px"; };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
+        im.w = +im.w.toFixed(2); save(); };
+      window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+    }
+    lay.addEventListener("pointerdown", e => { if (e.target === lay) { selId = null; draw(); } });
+
+    $("#layFile", bg).addEventListener("change", async e => {
+      const f = e.target.files[0]; if (!f) return;
+      toast("Uploading image…", "ok", 8000);
+      try {
+        const url = await uploadToImgbb(f);
+        const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "" };
+        images.push(im); selId = im.id; draw(); await save(); toast("Image added — drag it into place");
+      } catch (err) { toast("Upload failed: " + err.message, "bad", 5000); }
+      e.target.value = "";
+    });
+    $("#layDone", bg).onclick = () => { window.removeEventListener("resize", fit); bg.remove(); };
+    draw();
   }
 
   // -------------------------------------------------------------- Preview --
