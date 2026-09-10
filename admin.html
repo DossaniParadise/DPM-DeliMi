@@ -6,184 +6,185 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
-<title>Paradise Deli · Menu Admin</title>
+<title>Paradise Deli · Menu Editor</title>
 <link rel="icon" href="assets/logo.png">
-<link rel="apple-touch-icon" href="assets/logo.png">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <style>
+  /* ======================================================================
+     Paradise Deli — menu editor. Draws the menu like the TV does; tap anything
+     to change it. Self-contained (no other files needed).
+     ====================================================================== */
   :root {
-    --orange: #F39323; --orange-dk: #c9730f; --bg: #0f0f10; --card: #1b1b1e; --card2: #26262b;
-    --line: #34343a; --ink: #f4f4f4; --dim: #9a9aa3; --red: #e5484d; --green: #3fb950; --blue: #58a6ff;
+    --orange: #F39323; --bg: #0b0b0c; --card: #1b1b1e; --card2: #26262b; --line: #34343a;
+    --ink: #f4f4f4; --dim: #9a9aa3; --red: #e5484d; --green: #3fb950;
     --font: 'Poppins', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; }
-  body { padding-bottom: env(safe-area-inset-bottom); }
   button, input, select, textarea { font: inherit; }
   button { cursor: pointer; }
-  a { color: var(--orange); }
   .hidden { display: none !important; }
-
-  /* Top bar */
-  .top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-    background: #000; border-bottom: 1px solid var(--line); }
-  .top img { height: 30px; }
-  .top > b { white-space: nowrap; }
-  @media (max-width: 480px) { .top > b { display: none; } .top { gap: 8px; padding: 8px 10px; } }
-  .top .who { margin-left: auto; min-width: 0; font-size: 12px; color: var(--dim); text-align: right; line-height: 1.2; overflow: hidden; }
-  .top .who b, .top .who span { display: block; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .top .who span { color: var(--dim); }
   .btn { border: 1px solid var(--line); background: var(--card2); color: var(--ink); border-radius: 10px; padding: 9px 14px; font-weight: 600; }
   .btn.primary { background: var(--orange); border-color: var(--orange); color: #000; }
   .btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
   .btn.small { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
-  .btn.icon { padding: 6px 9px; }
   .btn:disabled { opacity: .5; cursor: default; }
+  .info { color: var(--dim); font-size: 13px; }
+  .err { color: var(--red); font-size: 14px; margin: 8px 0; }
 
-  /* Login */
-  .login { max-width: 380px; margin: 12vh auto; padding: 0 20px; }
-  .login img { display: block; height: 70px; margin: 0 auto 16px; }
+  /* ---- top bar ---- */
+  .top { position: sticky; top: 0; z-index: 20; background: #000; border-bottom: 1px solid var(--line); }
+  .top .row1 { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+  .top .row1 img { height: 26px; }
+  .top select { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 9px 10px; font-weight: 600; }
+  .top .row2 { display: flex; align-items: center; gap: 6px; padding: 0 10px 8px; overflow-x: auto; scrollbar-width: none; }
+  .top .row2::-webkit-scrollbar { display: none; }
+  .chip { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--dim); border-radius: 999px; padding: 6px 13px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+  .chip.active { background: var(--orange); border-color: var(--orange); color: #000; }
+  .chip.ghost { border-style: dashed; }
+  .top .spacer { flex: 1; }
+
+  /* ---- login / messages ---- */
+  .login { max-width: 380px; margin: 10vh auto; padding: 0 20px; }
   .login h1 { text-align: center; font-size: 20px; margin: 0 0 20px; }
   .field { display: block; margin-bottom: 12px; }
-  .field span { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
-  .field input, .field textarea, .field select { width: 100%; background: var(--card); border: 1px solid var(--line); color: var(--ink);
-    border-radius: 10px; padding: 11px 12px; }
-  .field input:focus, .field textarea:focus { outline: 2px solid var(--orange); border-color: transparent; }
-  .err { color: var(--red); font-size: 14px; margin: 8px 0; }
-  .info { color: var(--dim); font-size: 13px; }
+  .field > span { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+  .field input, .field textarea { width: 100%; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 12px; font-size: 16px; }
+  .field input:focus { outline: 2px solid var(--orange); border-color: transparent; }
 
-  /* Main layout */
-  .wrap { padding: 12px 12px 90px; max-width: 760px; margin: 0 auto; }
-  .row { display: flex; gap: 8px; align-items: center; }
-  .storebar select { flex: 1; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 11px 12px; font-weight: 600; }
-  .tabs { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0 6px; scrollbar-width: none; }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tab { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--dim); border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 14px; white-space: nowrap; }
-  .tab.active { background: var(--orange); border-color: var(--orange); color: #000; }
-  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 12px; }
+  /* ---- the board: same look as the TV ---- */
+  .stage { padding: 10px 10px 120px; max-width: 1100px; margin: 0 auto; }
+  .board { --u: 1px; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid #222; position: relative; }
+  .hdr { height: calc(var(--u) * 150); display: flex; align-items: center; justify-content: center; position: relative;
+    background: linear-gradient(180deg, #a9dcf3 0%, #bfe6f7 60%, #dff3fb 100%); }
+  .hdr img { height: 70%; max-width: 60%; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,.35)); }
+  .hdr .textlogo { display: none; font-weight: 800; font-size: calc(var(--u) * 54); color: var(--orange); letter-spacing: .06em; -webkit-text-stroke: .04em #1a1a1a; text-shadow: 0 .08em 0 #1a1a1a; text-align: center; line-height: 1; }
+  .hdr .textlogo small { display: block; font-size: .4em; letter-spacing: .3em; }
+  .hdr.nologo img { display: none; } .hdr.nologo .textlogo { display: block; }
+  .hdr .store { position: absolute; right: calc(var(--u) * 20); bottom: calc(var(--u) * 8); font-size: calc(var(--u) * 15); font-weight: 600; color: #1b3a4b; background: rgba(255,255,255,.65); padding: .2em .7em; border-radius: 999px; }
+  .body { position: relative; padding: calc(var(--u) * 18) calc(var(--u) * 28) calc(var(--u) * 18) calc(var(--u) * 34); }
+  .body::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--u) * 14); background: var(--orange); }
+  .menu { display: grid; grid-template-columns: 1fr; gap: 0 calc(var(--u) * 40); }
+  .board.wide .menu { grid-template-columns: 1fr 1fr; }
+  .cat { margin-bottom: calc(var(--u) * 22); break-inside: avoid; }
+  .cat h2 { margin: 0; text-align: center; color: var(--orange); text-transform: uppercase; letter-spacing: .12em; font-weight: 800;
+    font-size: calc(var(--u) * 30); line-height: 1.15; border-bottom: calc(var(--u) * 4) solid var(--orange); padding: .1em .3em .12em; border-radius: 4px 4px 0 0; }
+  .cat .note { font-style: italic; color: #cfcfcf; font-size: calc(var(--u) * 16); margin: .3em 0 .4em; text-align: center; padding: 0 .3em; }
+  .item { display: flex; align-items: baseline; gap: .6em; font-size: calc(var(--u) * 21); line-height: 1.35; padding: .18em .3em; border-radius: 6px; }
+  .item .name { flex: 1 1 auto; font-weight: 500; }
+  .item .dots { flex: 1 1 auto; border-bottom: 2px dotted #444; transform: translateY(-.35em); min-width: 1em; }
+  .item .price { flex: 0 0 auto; font-weight: 700; white-space: nowrap; letter-spacing: .04em; }
+  .item .desc { display: block; font-weight: 400; color: #cfcfcf; font-size: .78em; line-height: 1.25; }
+  .item.is-hidden { opacity: .35; }
+  .item.is-hidden .name::before { content: "🚫 "; }
+  .item .ovr { font-size: .55em; color: var(--orange); vertical-align: middle; margin-left: .5em; font-weight: 700; }
+  .screen-note { text-align: center; color: var(--orange); font-weight: 700; font-size: calc(var(--u) * 22); padding: .4em; border-radius: 6px; }
+  /* tap affordances */
+  .tap { cursor: pointer; }
+  .tap:hover, .tap:active { background: rgba(243,147,35,.16); }
+  .cat h2.tap:hover, .cat h2.tap:active { background: rgba(243,147,35,.25); }
+  .ghostline { color: #666; font-size: calc(var(--u) * 17); font-style: italic; padding: .3em .4em; border: 1px dashed #333; border-radius: 6px; margin-top: .3em; cursor: pointer; }
+  .ghostline:hover, .ghostline:active { color: var(--orange); border-color: var(--orange); }
+  .ghostcat { text-align: center; color: #666; border: 1px dashed #333; border-radius: 8px; padding: .6em; font-size: calc(var(--u) * 20); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; margin-top: calc(var(--u) * 10); }
+  .ghostcat:hover, .ghostcat:active { color: var(--orange); border-color: var(--orange); }
+  .sortable-ghost { opacity: .3; } .sortable-chosen { background: rgba(243,147,35,.25); }
+  .photos { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-top: 1px dashed #333; align-items: center; }
+  .photos img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 2px solid #333; cursor: pointer; }
+  .photos .lbl { font-size: 12px; color: var(--dim); width: 100%; }
+  .empty { text-align: center; color: var(--dim); padding: 40px 16px; }
 
-  .screen-head { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-  .screen-head input { width: 100%; background: transparent; border: none; border-bottom: 1px dashed var(--line); color: var(--ink); padding: 6px 0; }
-  .screen-head input.title { font-size: 18px; font-weight: 700; }
-  .screen-head .meta { font-size: 12px; color: var(--dim); margin-top: 6px; }
+  /* ---- bottom action bar ---- */
+  .actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: rgba(0,0,0,.92); border-top: 1px solid var(--line); overflow-x: auto; }
+  .actions .btn { flex: 0 0 auto; white-space: nowrap; }
 
-  .cat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
-  .cat-h { display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 6px; background: var(--card2); }
-  .cat-h .name { flex: 1; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: .04em; font-size: 15px; }
-  .cat-h .name small { display: block; text-transform: none; letter-spacing: 0; color: var(--dim); font-weight: 400; font-size: 12px; }
-  .handle { flex: 0 0 auto; width: 30px; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--dim); cursor: grab; touch-action: none; font-size: 20px; user-select: none; }
-  .items { list-style: none; margin: 0; padding: 0; }
-  .item { display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 4px; border-top: 1px solid var(--line); background: var(--card); }
-  .item.is-hidden .txt { opacity: .4; text-decoration: line-through; }
-  .item .txt { flex: 1; min-width: 0; }
-  .item .txt b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .item .txt small { display: block; color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .item .price { font-weight: 700; white-space: nowrap; }
-  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle; }
-  .badge.ovr { background: #3a2a10; color: var(--orange); }
-  .badge.custom { background: #10303a; color: var(--blue); }
-  .badge.missing { background: #3a1010; color: var(--red); }
-  .cat-foot { padding: 8px; border-top: 1px solid var(--line); }
-  .sortable-ghost { opacity: .35; }
-  .sortable-chosen { background: var(--card2); }
-  .empty { text-align: center; color: var(--dim); padding: 28px 12px; }
-
-  /* Bottom sheets */
-  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
-  .sheet { width: 100%; max-width: 620px; max-height: 92vh; overflow: auto; background: var(--card); border-radius: 18px 18px 0 0; padding: 14px 16px 24px; border-top: 3px solid var(--orange); }
+  /* ---- sheets ---- */
+  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; background: var(--card); border-radius: 18px 18px 0 0; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 3px solid var(--orange); }
   .sheet h3 { margin: 0 0 12px; font-size: 17px; }
-  .sheet .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-  .sheet .actions .btn { flex: 1; }
-  .scope { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .sheet .btns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .sheet .btns .btn { flex: 1; }
+  .sheet .btns .btn.grow2 { flex: 2; }
+  .sheet .rowbtns { display: flex; gap: 8px; margin-top: 8px; }
+  .sheet .rowbtns .btn { flex: 1; }
+  .scope { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; }
   .scope label { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
   .scope label.on { border-color: var(--orange); background: #241a0c; }
-  .scope input { margin-top: 3px; }
   .scope small { display: block; color: var(--dim); font-size: 12px; }
-  .photo { display: flex; gap: 10px; align-items: center; }
-  .photo img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: #000; }
-  .results { max-height: 40vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
-  .results div { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
-  .results div:hover { background: var(--card2); }
-  .results div span:last-child { color: var(--dim); }
   .switch { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+  .switch input { width: 22px; height: 22px; }
+  .sugg { border: 1px solid var(--line); border-radius: 10px; max-height: 32vh; overflow: auto; margin-top: -6px; margin-bottom: 10px; }
+  .sugg div { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
+  .sugg div:hover { background: var(--card2); }
+  .sugg div span:last-child { color: var(--dim); }
+  .sugg .new { color: var(--orange); font-weight: 600; }
 
-  /* Preview */
-  .preview-bg { position: fixed; inset: 0; background: #000; z-index: 50; display: flex; flex-direction: column; }
-  .preview-bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-bottom: 1px solid var(--line); }
-  .preview-bar .info { flex: 1; }
-  .preview-box { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-  .preview-box iframe { width: 1920px; height: 1080px; border: 0; transform-origin: top left; position: absolute; left: 0; top: 0; background: #000; }
-
-  /* Image layout editor */
-  .lay-bar input[type=file] { display: none; }
-  .lay { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: top left; }
+  /* ---- TV preview / photo placement ---- */
+  .tv-bg { position: fixed; inset: 0; background: #000; z-index: 50; display: flex; flex-direction: column; }
+  .tv-bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tv-bar .info { flex: 1; }
+  .tv-bar input[type=file] { display: none; }
+  .tv-box { flex: 1; position: relative; overflow: hidden; }
+  .tv-box iframe, .lay { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0; transform-origin: top left; background: transparent; }
   .lay .box { position: absolute; touch-action: none; cursor: move; outline: 3px dashed rgba(243,147,35,.55); outline-offset: 4px; }
   .lay .box.sel { outline: 4px solid var(--orange); }
   .lay .box img { display: block; width: 100%; height: auto; border-radius: 15px; pointer-events: none; user-select: none; box-shadow: 0 8px 30px rgba(0,0,0,.65); }
-  .lay .box .plabel { position: absolute; left: -42px; top: 50%; transform: translateY(-50%); width: 115px; height: 115px; border-radius: 50%; background: var(--orange); color: #000;
-    border: 5px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 31px; pointer-events: none; text-align: center; line-height: 1; }
-  .lay .box .rs { position: absolute; right: -22px; bottom: -22px; width: 56px; height: 56px; border-radius: 50%; background: var(--orange); border: 4px solid #000; cursor: nwse-resize; touch-action: none; }
-  .lay .box .rs::after { content: "⤡"; color: #000; font-size: 30px; font-weight: 700; display: flex; align-items: center; justify-content: center; height: 100%; }
-  .lay-tools { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-top: 1px solid var(--line); flex-wrap: wrap; }
-  .lay-tools input[type=text] { background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 8px 10px; width: 130px; }
+  .lay .box .plabel { position: absolute; left: -42px; top: 50%; transform: translateY(-50%); width: 115px; height: 115px; border-radius: 50%; background: var(--orange); color: #000; border: 5px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 31px; pointer-events: none; text-align: center; line-height: 1; }
+  .lay .box .rs { position: absolute; right: -24px; bottom: -24px; width: 60px; height: 60px; border-radius: 50%; background: var(--orange); border: 4px solid #000; cursor: nwse-resize; touch-action: none; }
+  .lay .box .rs::after { content: "⤡"; color: #000; font-size: 32px; font-weight: 700; display: flex; align-items: center; justify-content: center; height: 100%; }
+  .tv-tools { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #111; border-top: 1px solid var(--line); flex-wrap: wrap; min-height: 52px; }
+  .tv-tools input[type=text] { background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 8px 10px; width: 120px; }
 
-  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #222; color: #fff; padding: 12px 16px; border-radius: 12px;
-    border: 1px solid var(--line); z-index: 60; max-width: 92vw; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
-  .toast.ok { border-color: var(--green); } .toast.bad { border-color: var(--red); }
-  .fab { position: fixed; right: 16px; bottom: 16px; z-index: 30; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+  .toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); background: #222; color: #fff; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--green); z-index: 60; max-width: 92vw; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  .toast.bad { border-color: var(--red); }
 </style>
 </head>
 <body>
-  <div class="top">
-    <img src="assets/logo.png" alt="Paradise Deli" onerror="this.style.display='none'">
-    <b>Menu Admin</b>
-    <div class="who" id="who"></div>
-    <button class="btn small hidden" id="logoutBtn" style="white-space:nowrap">Log out</button>
+  <!-- top bar -->
+  <div class="top" id="top">
+    <div class="row1">
+      <img src="assets/logo.png" alt="" onerror="this.style.display='none'">
+      <select id="storeSel" class="hidden"></select>
+      <button class="btn small" id="settingsBtn" title="Store & screen settings">⚙</button>
+      <button class="btn small hidden" id="logoutBtn">Log out</button>
+    </div>
+    <div class="row2 hidden" id="screenChips"></div>
   </div>
 
-  <!-- ============================================================ Login -->
+  <!-- login -->
   <section id="loginView" class="login hidden">
-    <h1>Sign in</h1>
+    <h1>Menu Editor · Sign in</h1>
     <form id="loginForm">
       <label class="field"><span>Email</span><input type="email" id="email" autocomplete="username" required></label>
       <label class="field"><span>Password</span><input type="password" id="password" autocomplete="current-password" required></label>
       <div class="err" id="loginErr"></div>
       <button class="btn primary" style="width:100%" type="submit">Sign in</button>
     </form>
-    <p class="info" style="margin-top:14px">Use the email and password IT set up for you in Firebase. Stores you can edit come from FindMi.</p>
   </section>
 
-  <!-- ====================================================== Message view -->
-  <section id="msgView" class="login hidden"><h1 id="msgTitle"></h1><p class="info" id="msgBody"></p><div class="row" style="justify-content:center;margin-top:12px"><button class="btn" id="msgRetry">Retry</button></div></section>
+  <!-- message -->
+  <section id="msgView" class="login hidden"><h1 id="msgTitle"></h1><p class="info" id="msgBody"></p><div style="text-align:center;margin-top:12px"><button class="btn" id="msgRetry">Try again</button></div></section>
 
-  <!-- ============================================================= Main -->
-  <section id="mainView" class="wrap hidden">
-    <div class="row storebar">
-      <select id="storeSel"></select>
-      <a class="btn icon" id="openDisplay" href="#" target="_blank" title="Open the live display">↗</a>
-    </div>
-    <div class="tabs" id="tabs"></div>
-    <div class="toolbar">
-      <button class="btn small primary" id="previewBtn">▶ Preview TV</button>
-      <button class="btn small" id="imagesBtn">🖼 Images</button>
-      <button class="btn small" id="addCatBtn">+ Category</button>
-      <button class="btn small" id="delScreenBtn">Delete screen</button>
-    </div>
-    <div id="screenEditor"></div>
+  <!-- editor -->
+  <section id="editView" class="stage hidden">
+    <div class="board" id="board"></div>
   </section>
+  <div class="actions hidden" id="actions">
+    <button class="btn primary" id="previewBtn">▶ See it on the TV</button>
+    <button class="btn" id="photoBtn">📷 Add photo</button>
+    <button class="btn" id="addCatBtn">+ Section</button>
+  </div>
 
   <div id="sheetHost"></div>
   <div id="toastHost"></div>
 
 <script type="module">
-  // Self-contained: Firebase config + helpers live in this file (no common.js / config.js needed).
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-    from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
   import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, onSnapshot, writeBatch, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
+  // ------------------------------------------------------------- config --
   const firebaseConfig = {
     apiKey: "AIzaSyDkOgww069J3JxBmV8j-EUyl88goy5QtOY",
     authDomain: "dpm-menu-manager.firebaseapp.com",
@@ -192,628 +193,414 @@
     messagingSenderId: "246192582837",
     appId: "1:246192582837:web:a3101bfc960d8cd8f00efc",
   };
-  // FindMi alignment API — which stores a director / district manager owns (matched by email).
-  const ALIGNMENT_API_URL = "https://alignment-api-khaki.vercel.app/api/dpm-alignment";
-  // imgbb — item photo uploads.
-  const IMGBB_API_KEY = "b733862d15744e2bfaa4329d122f4ba0";
+  const ALIGNMENT_API_URL = "https://alignment-api-khaki.vercel.app/api/dpm-alignment"; // FindMi: who manages which stores
+  const IMGBB_API_KEY = "b733862d15744e2bfaa4329d122f4ba0";                             // photo uploads
+  const LOGO_URL = "assets/logo.png";
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const auth = getAuth(app);
+  const app = initializeApp(firebaseConfig), db = getFirestore(app), auth = getAuth(app);
 
-  // ------------------------------------------------------------- Helpers --
-  const $ = (sel, root = document) => root.querySelector(sel);
-  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  // ------------------------------------------------------------ helpers --
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  function uid(len = 8) {
-    const chars = "abcdefghijklmnopqrstuvwxyz0123456789"; let s = "";
-    const arr = new Uint8Array(len); crypto.getRandomValues(arr);
-    for (const b of arr) s += chars[b % chars.length]; return s;
-  }
-  // Stable catalog id from an item name: "Corn Dog W/ Cheese" -> "corn-dog-w-cheese"
-  function slug(name) {
-    return String(name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || uid();
-  }
-  function storeSort(a, b) {
-    const na = /PQS(\d+)/.exec(a), nb = /PQS(\d+)/.exec(b);
-    if (na && nb) return +na[1] - +nb[1];
-    if (na) return -1; if (nb) return 1;
-    return a.localeCompare(b);
-  }
-  // Flatten one screen entry: catalog ref → real item, with store-only price applied.
+  function uid(len = 8) { const ch = "abcdefghijklmnopqrstuvwxyz0123456789"; const a = new Uint8Array(len); crypto.getRandomValues(a); return Array.from(a, b => ch[b % ch.length]).join(""); }
+  function slug(name) { return String(name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || uid(); }
+  function storeSort(a, b) { const na = /PQS(\d+)/.exec(a), nb = /PQS(\d+)/.exec(b); if (na && nb) return +na[1] - +nb[1]; if (na) return -1; if (nb) return 1; return a.localeCompare(b); }
   function resolveItem(entry, catalog) {
-    if (entry.custom) {
-      return { id: entry.id, custom: true, name: entry.name || "", price: entry.price || "", description: entry.description || "",
-        photoUrl: entry.photoUrl || "", hidden: !!entry.hidden, override: false, missing: false, entry };
-    }
-    const base = catalog?.[entry.itemId];
-    if (!base) return { id: entry.id, itemId: entry.itemId, name: `(missing item ${entry.itemId})`, price: "", description: "", photoUrl: "",
-      hidden: !!entry.hidden, override: false, missing: true, entry };
+    if (entry.custom) return { id: entry.id, custom: true, name: entry.name || "", price: entry.price || "", description: entry.description || "", hidden: !!entry.hidden, override: false, missing: false };
+    const base = catalog[entry.itemId];
+    if (!base) return { id: entry.id, itemId: entry.itemId, name: "(missing item)", price: "", description: "", hidden: !!entry.hidden, override: false, missing: true };
     const override = entry.price != null && entry.price !== "" && entry.price !== base.price;
     return { id: entry.id, itemId: entry.itemId, name: base.name, price: override ? entry.price : (base.price || ""), basePrice: base.price || "",
-      description: entry.description ?? base.description ?? "", photoUrl: entry.photoUrl || base.photoUrl || "",
-      hidden: !!entry.hidden, override, missing: false, entry };
+      description: entry.description ?? base.description ?? "", hidden: !!entry.hidden, override, missing: false };
   }
-  // ---------------------------------------------------- FindMi alignment --
-  function locationIdFromRestaurant(rest) {
-    if (!rest) return null;
-    const division = String(rest.division || "").toLowerCase();
-    const name = String(rest.storeName || "");
-    const num = String(rest.storeNumber || "").replace("#", "").trim();
+  function locationIdFromRestaurant(r) {
+    if (!r) return null;
+    const division = String(r.division || "").toLowerCase(), name = String(r.storeName || ""), num = String(r.storeNumber || "").replace("#", "").trim();
     if (/scarborough travel stop/i.test(name) || /^sts$/i.test(num)) return "STS";
     if (/paradise quick stop/i.test(name)) { const m = /#\s*0*(\d+)/.exec(name); if (m) return "PQS" + parseInt(m[1], 10); }
     if (division === "c-store" && /^\d+$/.test(num)) return "PQS" + parseInt(num, 10);
     return null;
   }
   async function fetchAlignment() {
-    const res = await fetch(ALIGNMENT_API_URL + (ALIGNMENT_API_URL.includes("?") ? "&" : "?") + "_=" + Date.now(), { cache: "no-store" });
+    const res = await fetch(ALIGNMENT_API_URL + "?_=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error("Alignment API " + res.status);
     return res.json();
   }
-  // Stores this person manages per FindMi: match email (or optional matchName) against directors + areaCoaches.
-  function allowedLocationsFor(alignment, email, matchName) {
-    const directors = alignment?.directors || {}, coaches = alignment?.areaCoaches || {}, restaurants = alignment?.restaurants || {};
+  function allowedLocationsFor(al, email, matchName) {
+    const directors = al?.directors || {}, coaches = al?.areaCoaches || {}, restaurants = al?.restaurants || {};
     const em = String(email || "").trim().toLowerCase(), nm = String(matchName || "").trim().toLowerCase();
     const hit = p => (p?.email && String(p.email).trim().toLowerCase() === em) || (nm && p?.name && String(p.name).trim().toLowerCase() === nm);
-    const dirIds = Object.keys(directors).filter(id => hit(directors[id]));
-    const coachIds = Object.keys(coaches).filter(id => hit(coaches[id]));
+    const dirIds = Object.keys(directors).filter(id => hit(directors[id])), coachIds = Object.keys(coaches).filter(id => hit(coaches[id]));
     const personNames = [...dirIds.map(id => directors[id].name), ...coachIds.map(id => coaches[id].name)];
     const ids = new Set();
     for (const r of Object.values(restaurants)) {
       const locId = locationIdFromRestaurant(r); if (!locId) continue;
-      let coachList = [];
-      if (Array.isArray(r.assignedAreaCoachIds)) coachList = r.assignedAreaCoachIds;
-      else if (r.assignedAreaCoachIds && typeof r.assignedAreaCoachIds === "object") coachList = Object.values(r.assignedAreaCoachIds);
-      else if (r.assignedAreaCoachId) coachList = [r.assignedAreaCoachId];
-      if (dirIds.includes(r.assignedDirectorId) || coachList.some(c => coachIds.includes(c))) ids.add(locId);
+      let cl = Array.isArray(r.assignedAreaCoachIds) ? r.assignedAreaCoachIds : (r.assignedAreaCoachIds && typeof r.assignedAreaCoachIds === "object") ? Object.values(r.assignedAreaCoachIds) : (r.assignedAreaCoachId ? [r.assignedAreaCoachId] : []);
+      if (dirIds.includes(r.assignedDirectorId) || cl.some(c => coachIds.includes(c))) ids.add(locId);
     }
     return { ids: [...ids].sort(storeSort), personNames };
   }
 
-  // ---------------------------------------------------------------- State --
-  const S = {
-    user: null, admin: null,           // Firebase user, admins/{uid} doc
-    allowed: [],                       // location ids this person may edit
-    allLocations: {},                  // id -> {name,...} (names for the dropdown)
-    locId: null, loc: null,            // selected store + live doc
-    screenIdx: 0,
-    catalog: {},                       // menuItems
-    unsubLoc: null, unsubCat: null,
-    sortables: [],
-  };
+  // -------------------------------------------------------------- state --
+  const S = { user: null, admin: null, allowed: [], all: {}, locId: null, loc: null, si: 0, catalog: {}, unsubLoc: null, unsubCat: null, sortables: [] };
   const params = new URLSearchParams(location.search);
-
-  const views = { login: $("#loginView"), msg: $("#msgView"), main: $("#mainView") };
-  function show(name) { for (const k in views) views[k].classList.toggle("hidden", k !== name); }
+  const views = { login: $("#loginView"), msg: $("#msgView"), edit: $("#editView") };
+  function show(name) {
+    for (const k in views) views[k].classList.toggle("hidden", k !== name);
+    $("#actions").classList.toggle("hidden", name !== "edit");
+    $("#storeSel").classList.toggle("hidden", name !== "edit");
+    $("#screenChips").classList.toggle("hidden", name !== "edit");
+    $("#settingsBtn").classList.toggle("hidden", name !== "edit");
+  }
   function message(title, body, retry) {
     $("#msgTitle").textContent = title; $("#msgBody").textContent = body;
-    $("#msgRetry").classList.toggle("hidden", !retry); $("#msgRetry").onclick = retry || null;
-    show("msg");
+    $("#msgRetry").classList.toggle("hidden", !retry); $("#msgRetry").onclick = retry || null; show("msg");
   }
-  function toast(text, kind = "ok", ms = 3200) {
-    const t = document.createElement("div"); t.className = "toast " + kind; t.textContent = text;
+  function toast(text, bad = false, ms = 2600) {
+    const t = document.createElement("div"); t.className = "toast" + (bad ? " bad" : ""); t.textContent = text;
     $("#toastHost").appendChild(t); setTimeout(() => t.remove(), ms);
   }
+  const screen = () => S.loc?.screens?.[S.si];
 
-  // ----------------------------------------------------------------- Auth --
+  // --------------------------------------------------------------- auth --
   $("#loginForm").addEventListener("submit", async e => {
     e.preventDefault(); $("#loginErr").textContent = "";
     try { await signInWithEmailAndPassword(auth, $("#email").value.trim(), $("#password").value); }
-    catch (err) { $("#loginErr").textContent = friendlyAuthError(err); }
+    catch (err) {
+      const c = err?.code || "";
+      $("#loginErr").textContent = /invalid-credential|wrong-password|user-not-found|invalid-email/.test(c) ? "Email or password is incorrect." : /too-many/.test(c) ? "Too many attempts — wait a minute." : "Sign-in failed: " + c;
+    }
   });
   $("#logoutBtn").onclick = () => signOut(auth);
-  function friendlyAuthError(err) {
-    const c = err?.code || "";
-    if (/invalid-credential|wrong-password|user-not-found|invalid-email/.test(c)) return "Email or password is incorrect.";
-    if (/too-many-requests/.test(c)) return "Too many attempts. Wait a minute and try again.";
-    if (/network/.test(c)) return "No network connection.";
-    return "Sign-in failed: " + c;
-  }
-
   onAuthStateChanged(auth, async user => {
-    S.user = user;
-    $("#logoutBtn").classList.toggle("hidden", !user);
-    $("#who").innerHTML = user ? `<b>${esc(user.email)}</b><span id="whoSub"></span>` : "";
-    if (!user) { show("login"); teardown(); return; }
+    S.user = user; $("#logoutBtn").classList.toggle("hidden", !user);
+    if (!user) { S.unsubLoc?.(); S.unsubCat?.(); S.loc = null; show("login"); return; }
     await bootstrap();
   });
 
   async function bootstrap() {
-    show("msg"); message("Loading…", "Checking your access.");
-    // 1. admins/{uid} — must exist (created by IT in the Firebase console).
-    let adminSnap;
-    try { adminSnap = await getDoc(doc(db, "admins", S.user.uid)); }
-    catch (e) { return message("Can't read admin record", e.message, bootstrap); }
-    if (!adminSnap.exists()) {
-      return message("Not set up as an admin", `${S.user.email} signed in, but there is no admins/${S.user.uid} record. Ask IT to add it.`, null);
+    message("Loading…", "Checking your access.");
+    let a;
+    try { a = await getDoc(doc(db, "admins", S.user.uid)); } catch (e) { return message("Can't read admin record", e.message, bootstrap); }
+    if (!a.exists()) return message("Not set up as an editor", `${S.user.email} signed in, but there is no admins/${S.user.uid} record. Ask IT to add it.`);
+    S.admin = a.data();
+    const ls = await getDocs(collection(db, "locations")); S.all = {}; ls.forEach(d => { S.all[d.id] = d.data(); });
+    if (S.admin.role === "super") S.allowed = Object.keys(S.all).sort(storeSort);
+    else {
+      let al; try { al = await fetchAlignment(); } catch (e) { return message("Couldn't load your stores", "FindMi did not respond (" + e.message + ").", bootstrap); }
+      const { ids, personNames } = allowedLocationsFor(al, S.user.email, S.admin.matchName);
+      S.allowed = ids.filter(id => S.all[id]);
+      if (!personNames.length) return message("No FindMi match", `FindMi has no director or district manager with the email ${S.user.email}.`, bootstrap);
+      if (!S.allowed.length) return message("No stores assigned", `FindMi lists ${personNames.join(", ")} but no Paradise Quick Stop stores are assigned.`, bootstrap);
     }
-    S.admin = adminSnap.data();
-
-    // 2. All locations (names + ids). Public read.
-    const locSnap = await getDocs(collection(db, "locations"));
-    S.allLocations = {};
-    locSnap.forEach(d => { S.allLocations[d.id] = d.data(); });
-
-    // 3. Which stores? Super admins: all. Managers: from FindMi alignment by email.
-    if (S.admin.role === "super") {
-      S.allowed = Object.keys(S.allLocations).sort(storeSort);
-      $("#whoSub").textContent = "All stores";
-    } else {
-      let alignment;
-      try { alignment = await fetchAlignment(); }
-      catch (e) {
-        return message("Couldn't load store assignments", "The FindMi alignment API did not respond (" + e.message + "). Your stores are read from it, so editing is paused until it is reachable.", bootstrap);
-      }
-      const { ids, personNames } = allowedLocationsFor(alignment, S.user.email, S.admin.matchName);
-      S.allowed = ids.filter(id => S.allLocations[id]);
-      if (!personNames.length) {
-        return message("No FindMi match", `FindMi has no director or district manager with the email ${S.user.email}. Add that email to the person in FindMi (or ask IT to set matchName on your admin record).`, bootstrap);
-      }
-      if (!S.allowed.length) {
-        return message("No stores assigned", `FindMi lists ${personNames.join(", ")} but no Paradise Quick Stop / Travel Stop stores are assigned to them.`, bootstrap);
-      }
-      $("#whoSub").textContent = `${personNames[0]} · ${S.allowed.length} store${S.allowed.length > 1 ? "s" : ""}`;
-    }
-
-    // 4. Catalog live.
-    S.unsubCat?.();
-    S.unsubCat = onSnapshot(collection(db, "menuItems"), snap => {
-      const c = {}; snap.forEach(d => { c[d.id] = d.data(); }); S.catalog = c; renderScreen();
-    });
-
-    // 5. Store picker.
+    S.unsubCat?.(); S.unsubCat = onSnapshot(collection(db, "menuItems"), snap => { const c = {}; snap.forEach(d => { c[d.id] = d.data(); }); S.catalog = c; render(); });
     const sel = $("#storeSel");
-    sel.innerHTML = S.allowed.map(id => `<option value="${esc(id)}">${esc(S.allLocations[id]?.name || id)} (${esc(id)})${S.allLocations[id]?.active === false ? " · inactive" : ""}</option>`).join("");
+    sel.innerHTML = S.allowed.map(id => `<option value="${esc(id)}">${esc(S.all[id]?.name || id)}${S.all[id]?.active === false ? " (hidden)" : ""}</option>`).join("");
     const want = (params.get("id") || localStorage.getItem("admin.locId") || "").toUpperCase();
     selectStore(S.allowed.includes(want) ? want : S.allowed[0], parseInt(params.get("screen") || "1", 10) - 1);
     sel.onchange = () => selectStore(sel.value, 0);
-    show("main");
+    show("edit");
   }
-
-  function teardown() { S.unsubLoc?.(); S.unsubCat?.(); S.unsubLoc = S.unsubCat = null; S.loc = null; }
-
-  function selectStore(id, screenIdx = 0) {
-    S.locId = id; S.screenIdx = Math.max(0, screenIdx || 0);
+  function selectStore(id, si = 0) {
+    S.locId = id; S.si = Math.max(0, si || 0);
     try { localStorage.setItem("admin.locId", id); } catch (e) {}
     $("#storeSel").value = id;
     S.unsubLoc?.();
     S.unsubLoc = onSnapshot(doc(db, "locations", id), snap => {
       S.loc = snap.exists() ? snap.data() : { name: id, screens: [] };
-      S.allLocations[id] = S.loc;
-      if (S.screenIdx >= (S.loc.screens || []).length) S.screenIdx = Math.max(0, (S.loc.screens || []).length - 1);
-      renderTabs(); renderScreen();
+      S.all[id] = S.loc;
+      if (S.si >= (S.loc.screens || []).length) S.si = Math.max(0, (S.loc.screens || []).length - 1);
+      render();
     });
   }
 
-  // -------------------------------------------------------------- Render --
-  function renderTabs() {
-    const screens = S.loc?.screens || [];
-    $("#tabs").innerHTML = screens.map((s, i) =>
-      `<button class="tab ${i === S.screenIdx ? "active" : ""}" data-i="${i}">${i + 1}. ${esc(s.title || "Screen " + (i + 1))}</button>`).join("")
-      + `<button class="tab" data-add="1">+ Screen</button>`;
-    $$("#tabs .tab").forEach(b => b.onclick = () => {
-      if (b.dataset.add) return addScreen();
-      S.screenIdx = +b.dataset.i; renderTabs(); renderScreen();
-    });
-    $("#openDisplay").href = `index.html?id=${encodeURIComponent(S.locId)}&screen=${S.screenIdx + 1}`;
-  }
+  // ------------------------------------------------------------- render --
+  function render() {
+    if (!S.loc) return;
+    // screen chips
+    const screens = S.loc.screens || [];
+    $("#screenChips").innerHTML = screens.map((s, i) => `<button class="chip ${i === S.si ? "active" : ""}" data-i="${i}">TV ${i + 1}${s.title ? " · " + esc(s.title) : ""}</button>`).join("")
+      + `<button class="chip ghost" data-add="1">+ TV</button>`;
+    $$("#screenChips .chip").forEach(b => b.onclick = () => { if (b.dataset.add) return addScreen(); S.si = +b.dataset.i; render(); });
 
-  function renderScreen() {
-    const host = $("#screenEditor");
-    const screen = S.loc?.screens?.[S.screenIdx];
-    S.sortables.forEach(s => s.destroy()); S.sortables = [];
-    if (!S.loc) { host.innerHTML = ""; return; }
-    if (!screen) {
-      host.innerHTML = `<div class="empty">This store has no screens yet.<br><br><button class="btn primary" id="firstScreen">Add screen 1</button></div>`;
-      $("#firstScreen").onclick = addScreen; return;
+    const board = $("#board"); S.sortables.forEach(s => s.destroy()); S.sortables = [];
+    const sc = screen();
+    if (!sc) { board.innerHTML = `<div class="empty">This store has no TV screens yet.<br><br><button class="btn primary" id="firstScreen">Set up TV 1</button></div>`; $("#firstScreen").onclick = addScreen; return; }
+    const cats = sc.categories || [];
+    board.innerHTML = `
+      <div class="hdr"><img src="${esc(S.loc.logoUrl || LOGO_URL)}" alt="" onerror="this.parentNode.classList.add('nologo')"><div class="textlogo">PARADISE<small>DELI</small></div>
+        <span class="store">${esc(S.loc.name || S.locId)}</span></div>
+      <div class="body"><div class="menu" id="menu">
+        ${cats.map(cat => `<section class="cat" data-cid="${esc(cat.id)}">
+          <h2 class="tap" data-cat="${esc(cat.id)}">${esc(cat.name)}</h2>
+          ${cat.note ? `<p class="note tap" data-cat="${esc(cat.id)}">${esc(cat.note)}</p>` : ""}
+          <div class="items" data-cid="${esc(cat.id)}">
+          ${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="item tap ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}">
+            <span class="name">${esc(it.name)}${it.override ? `<span class="ovr">this store</span>` : ""}${it.description ? `<span class="desc">${esc(it.description)}</span>` : ""}</span>
+            <span class="dots"></span><span class="price">${esc(it.price) || "<span style='color:#666'>price?</span>"}</span></div>`; }).join("")}
+          </div>
+          <div class="ghostline" data-additem="${esc(cat.id)}">+ add item to ${esc(cat.name)}</div>
+        </section>`).join("")}
+        ${cats.length ? "" : `<div class="empty">Nothing on this TV yet. Tap <b>+ Section</b> below to add a heading like “Breakfast”.</div>`}
+      </div>
+      <div class="screen-note tap" data-note="1">${sc.note ? esc(sc.note) : `<span style="color:#666;font-weight:400;font-style:italic;font-size:.8em">+ note at the bottom of the TV (optional)</span>`}</div>
+      </div>
+      ${(sc.images || []).length ? `<div class="photos"><span class="lbl">Photos on this TV — tap to edit, or use “See it on the TV” to move them</span>
+        ${sc.images.map(im => `<img src="${esc(im.url)}" data-img="${esc(im.id)}" title="${esc(im.label || "")}">`).join("")}</div>` : ""}`;
+    board.classList.toggle("wide", board.clientWidth > 700);
+    board.style.setProperty("--u", (board.clientWidth / 1920 * (board.clientWidth > 700 ? 1 : 3.4)).toFixed(4) + "px");
+
+    $$("[data-cat]", board).forEach(el => el.onclick = () => openCategory(el.dataset.cat));
+    $$("[data-item]", board).forEach(el => el.onclick = () => openItem(el.dataset.item));
+    $$("[data-additem]", board).forEach(el => el.onclick = () => openAddItem(el.dataset.additem));
+    $("[data-note]", board).onclick = openNote;
+    $$("[data-img]", board).forEach(el => el.onclick = () => openTV(el.dataset.img));
+
+    // Long-press (touch) or drag (mouse) to reorder items and sections.
+    if (window.Sortable) {
+      S.sortables.push(new Sortable($("#menu"), { draggable: ".cat", handle: "h2", delay: 250, delayOnTouchOnly: true, animation: 150, onEnd: () => {
+        const order = $$("#menu .cat").map(el => el.dataset.cid);
+        mutate(loc => { loc.screens[S.si].categories.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); });
+      } }));
+      $$("#menu .items").forEach(ul => S.sortables.push(new Sortable(ul, { group: "items", delay: 250, delayOnTouchOnly: true, animation: 150, onEnd: () => {
+        const dom = {}; $$("#menu .items").forEach(u => { dom[u.dataset.cid] = $$(".item", u).map(li => li.dataset.item); });
+        mutate(loc => { const s = loc.screens[S.si]; const all = {}; s.categories.forEach(c => (c.items || []).forEach(e => { all[e.id] = e; }));
+          s.categories.forEach(c => { c.items = (dom[c.id] || []).map(id => all[id]).filter(Boolean); }); });
+      } })));
     }
-    const cats = screen.categories || [];
-    host.innerHTML = `
-      <div class="screen-head">
-        <input class="title" id="scrTitle" value="${esc(screen.title || "")}" placeholder="Screen title (admin only)">
-        <input id="scrNote" value="${esc(screen.note || "")}" placeholder="Footer note shown on the TV (optional)">
-        <div class="meta">TV URL: <a href="index.html?id=${esc(S.locId)}&screen=${S.screenIdx + 1}" target="_blank">index.html?id=${esc(S.locId)}&screen=${S.screenIdx + 1}</a></div>
-        <div class="switch" style="padding-bottom:0"><span>Store active <small class="info">(shown in the store picker)</small></span><input type="checkbox" id="locActive" ${S.loc.active !== false ? "checked" : ""}></div>
-      </div>
-      <div id="catList">
-      ${cats.map(cat => `<div class="cat" data-cid="${esc(cat.id)}">
-        <div class="cat-h"><span class="handle cat-handle">☰</span>
-          <div class="name">${esc(cat.name)}${cat.note ? `<small>${esc(cat.note)}</small>` : ""}</div>
-          <button class="btn small icon" data-edit-cat="${esc(cat.id)}" title="Edit category">✎</button>
-        </div>
-        <ul class="items" data-cid="${esc(cat.id)}">
-          ${(cat.items || []).map(entry => { const it = resolveItem(entry, S.catalog); return `
-          <li class="item ${it.hidden ? "is-hidden" : ""}" data-iid="${esc(entry.id)}">
-            <span class="handle item-handle">⋮⋮</span>
-            <div class="txt" data-open="${esc(entry.id)}"><b>${esc(it.name)}${it.override ? `<span class="badge ovr">this store</span>` : ""}${it.custom ? `<span class="badge custom">custom</span>` : ""}${it.missing ? `<span class="badge missing">missing</span>` : ""}</b>
-              ${it.description ? `<small>${esc(it.description)}</small>` : ""}</div>
-            <span class="price" data-open="${esc(entry.id)}">${esc(it.price)}</span>
-            <button class="btn small icon" data-hide="${esc(entry.id)}" title="${it.hidden ? "Show" : "Hide"} on this screen">${it.hidden ? "🚫" : "👁"}</button>
-          </li>`; }).join("")}
-        </ul>
-        <div class="cat-foot"><button class="btn small" data-add-item="${esc(cat.id)}">+ Add item</button></div>
-      </div>`).join("")}
-      </div>
-      ${cats.length ? "" : `<div class="empty">No categories on this screen yet. Tap <b>+ Category</b>.</div>`}`;
-
-    // Screen title / note edits (save on change)
-    $("#scrTitle").onchange = e => mutate(loc => { loc.screens[S.screenIdx].title = e.target.value.trim(); }, "Screen title saved");
-    $("#scrNote").onchange = e => mutate(loc => { loc.screens[S.screenIdx].note = e.target.value.trim(); }, "Footer note saved");
-    $("#locActive").onchange = e => mutate(loc => { loc.active = e.target.checked; }, e.target.checked ? "Store is now active" : "Store hidden from picker");
-
-    // Buttons
-    $$("[data-edit-cat]").forEach(b => b.onclick = () => openCategorySheet(b.dataset.editCat));
-    $$("[data-add-item]").forEach(b => b.onclick = () => openAddItemSheet(b.dataset.addItem));
-    $$("[data-open]").forEach(el => el.onclick = () => openItemSheet(el.dataset.open));
-    $$("[data-hide]").forEach(b => b.onclick = () => toggleHidden(b.dataset.hide));
-
-    // Drag to reorder — categories and items (items can move between categories).
-    S.sortables.push(new Sortable($("#catList"), {
-      handle: ".cat-handle", animation: 150, onEnd: () => {
-        const order = $$("#catList .cat").map(el => el.dataset.cid);
-        mutate(loc => { const sc = loc.screens[S.screenIdx]; sc.categories.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); }, "Order saved");
-      },
-    }));
-    $$("#catList .items").forEach(ul => S.sortables.push(new Sortable(ul, {
-      group: "items", handle: ".item-handle", animation: 150, onEnd: () => {
-        // Rebuild every category's item list from the DOM.
-        const domOrder = {}; $$("#catList .items").forEach(u => { domOrder[u.dataset.cid] = $$(".item", u).map(li => li.dataset.iid); });
-        mutate(loc => {
-          const sc = loc.screens[S.screenIdx];
-          const all = {}; sc.categories.forEach(c => (c.items || []).forEach(e => { all[e.id] = e; }));
-          sc.categories.forEach(c => { c.items = (domOrder[c.id] || []).map(id => all[id]).filter(Boolean); });
-        }, "Order saved");
-      },
-    })));
   }
+  window.addEventListener("resize", () => { if (S.loc && !$("#sheet")) render(); });
 
-  // --------------------------------------------------------------- Writes --
-  // Every edit: copy the doc, apply the change, write screens back. The live
-  // listener echoes it into the UI (instantly, from Firestore's local cache).
+  // ------------------------------------------------------------- writes --
   async function mutate(fn, okText) {
-    const loc = JSON.parse(JSON.stringify(S.loc || { screens: [] }));
-    loc.screens = loc.screens || [];
-    const r = fn(loc);
-    if (r === false) return;
+    const loc = JSON.parse(JSON.stringify(S.loc || { screens: [] })); loc.screens = loc.screens || [];
+    if (fn(loc) === false) return;
     try {
-      await setDoc(doc(db, "locations", S.locId), {
-        name: loc.name || S.allLocations[S.locId]?.name || S.locId,
-        active: loc.active !== false,
-        screens: loc.screens, screenCount: loc.screens.length,
-        updatedAt: serverTimestamp(), updatedBy: S.user.email,
-      }, { merge: true });
+      await setDoc(doc(db, "locations", S.locId), { name: loc.name || S.all[S.locId]?.name || S.locId, active: loc.active !== false, screens: loc.screens, screenCount: loc.screens.length, updatedAt: serverTimestamp(), updatedBy: S.user.email }, { merge: true });
       if (okText) toast(okText);
-    } catch (e) { console.error(e); toast("Save failed: " + (e.code || e.message), "bad", 5000); }
+    } catch (e) { console.error(e); toast("Save failed: " + (e.code || e.message), true, 5000); }
   }
+  const findCat = (loc, id) => { const s = loc.screens[S.si]; s.categories = s.categories || []; const c = s.categories.find(c => c.id === id); if (c) c.items = c.items || []; return c; };
+  const findEntry = (loc, id) => { for (const c of (loc.screens[S.si]?.categories || [])) for (const e of (c.items || [])) if (e.id === id) return e; return null; };
+  const catOf = (loc, entryId) => (loc.screens[S.si]?.categories || []).find(c => (c.items || []).some(e => e.id === entryId));
+  function addScreen() { mutate(loc => { loc.screens.push({ id: uid(), title: "", note: "", categories: [] }); S.si = loc.screens.length - 1; }, "New TV screen added"); }
 
-  function addScreen() {
-    mutate(loc => { loc.screens.push({ id: uid(), title: "Screen " + (loc.screens.length + 1), note: "", categories: [] }); S.screenIdx = loc.screens.length - 1; }, "Screen added");
-  }
-  $("#delScreenBtn").onclick = () => {
-    const sc = S.loc?.screens?.[S.screenIdx]; if (!sc) return;
-    const n = (sc.categories || []).reduce((a, c) => a + (c.items || []).length, 0);
-    if (!confirm(`Delete screen ${S.screenIdx + 1} "${sc.title}"${n ? ` and its ${n} items` : ""}? The TV using this URL will show "not set up".`)) return;
-    mutate(loc => { loc.screens.splice(S.screenIdx, 1); S.screenIdx = Math.max(0, S.screenIdx - 1); }, "Screen deleted");
-  };
-  $("#addCatBtn").onclick = () => {
-    if (!S.loc?.screens?.[S.screenIdx]) return toast("Add a screen first", "bad");
-    openCategorySheet(null);
-  };
-  function toggleHidden(entryId) {
-    mutate(loc => { const e = findEntry(loc, entryId); if (e) e.hidden = !e.hidden; }, null);
-  }
-  function findEntry(loc, entryId) {
-    for (const c of (loc.screens[S.screenIdx]?.categories || [])) for (const e of (c.items || [])) if (e.id === entryId) return e;
-    return null;
-  }
-  function findCat(loc, catId) {
-    const sc = loc.screens[S.screenIdx]; sc.categories = sc.categories || [];
-    const c = sc.categories.find(c => c.id === catId); if (c) c.items = c.items || [];
-    return c;
-  }
-
-  // --------------------------------------------------------------- Sheets --
+  // ------------------------------------------------------------- sheets --
   function sheet(html) {
     closeSheet();
     const bg = document.createElement("div"); bg.className = "sheet-bg"; bg.id = "sheet";
     bg.innerHTML = `<div class="sheet">${html}</div>`;
     bg.addEventListener("click", e => { if (e.target === bg) closeSheet(); });
-    $("#sheetHost").appendChild(bg);
-    return bg;
+    $("#sheetHost").appendChild(bg); return bg;
   }
   function closeSheet() { $("#sheet")?.remove(); }
 
-  function openCategorySheet(catId) {
-    const cat = catId ? findCat(S.loc, catId) : null;
-    const el = sheet(`<h3>${cat ? "Edit category" : "New category"}</h3>
-      <label class="field"><span>Category name (shown on TV)</span><input id="cName" value="${esc(cat?.name || "")}" placeholder="e.g. Breakfast"></label>
-      <label class="field"><span>Note under the heading (optional)</span><input id="cNote" value="${esc(cat?.note || "")}" placeholder="e.g. Available 10 AM – 4 PM"></label>
-      <div class="actions"><button class="btn primary" id="cSave">Save</button>${cat ? `<button class="btn danger" id="cDel">Delete category</button>` : ""}</div>`);
+  // Section (category)
+  function openCategory(catId) {
+    const cat = catId ? findCat(JSON.parse(JSON.stringify(S.loc)), catId) : null;
+    const el = sheet(`<h3>${cat ? "Section" : "New section"}</h3>
+      <label class="field"><span>Heading (shown on the TV)</span><input id="cName" value="${esc(cat?.name || "")}" placeholder="e.g. Breakfast"></label>
+      <label class="field"><span>Small note under the heading (optional)</span><input id="cNote" value="${esc(cat?.note || "")}" placeholder="e.g. Available 10 AM – 4 PM"></label>
+      ${cat ? `<div class="rowbtns"><button class="btn" id="cUp">↑ Move up</button><button class="btn" id="cDown">↓ Move down</button></div>` : ""}
+      <div class="btns"><button class="btn primary grow2" id="cSave">Save</button>${cat ? `<button class="btn danger" id="cDel">Delete</button>` : ""}</div>`);
     $("#cName", el).focus();
     $("#cSave", el).onclick = () => {
-      const name = $("#cName", el).value.trim(); if (!name) return;
-      const note = $("#cNote", el).value.trim();
-      mutate(loc => {
-        if (cat) { const c = findCat(loc, catId); c.name = name; c.note = note; }
-        else loc.screens[S.screenIdx].categories.push({ id: uid(), name, note, items: [] });
-      }, cat ? "Category saved" : "Category added");
+      const name = $("#cName", el).value.trim(), note = $("#cNote", el).value.trim(); if (!name) return $("#cName", el).focus();
+      mutate(loc => { if (cat) { const c = findCat(loc, catId); c.name = name; c.note = note; } else loc.screens[S.si].categories.push({ id: uid(), name, note, items: [] }); }, "Saved");
       closeSheet();
     };
-    if (cat) $("#cDel", el).onclick = () => {
-      if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this screen?`)) return;
-      mutate(loc => { const sc = loc.screens[S.screenIdx]; sc.categories = sc.categories.filter(c => c.id !== catId); }, "Category deleted");
-      closeSheet();
-    };
-  }
-
-  // Add item: search the shared catalog, or create a new one.
-  function openAddItemSheet(catId) {
-    const el = sheet(`<h3>Add item</h3>
-      <label class="field"><span>Search the shared item list, or type a new name</span><input id="q" placeholder="e.g. Corn Dog" autocomplete="off"></label>
-      <div class="results" id="res"></div>
-      <div class="actions"><button class="btn" id="mkCustom">Add as store-only item</button><button class="btn primary" id="mkNew">Create new shared item</button></div>
-      <p class="info">Shared items keep one name, photo and default price for every store (each store can still set its own price). Store-only items exist only here.</p>`);
-    const q = $("#q", el), res = $("#res", el);
-    const onScreen = new Set(); (S.loc.screens[S.screenIdx].categories || []).forEach(c => (c.items || []).forEach(e => e.itemId && onScreen.add(e.itemId)));
-    function list() {
-      const term = q.value.trim().toLowerCase();
-      const rows = Object.entries(S.catalog).map(([id, it]) => ({ id, ...it }))
-        .filter(it => !term || it.name.toLowerCase().includes(term))
-        .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 60);
-      res.innerHTML = rows.map(it => `<div data-id="${esc(it.id)}"><span>${esc(it.name)}${onScreen.has(it.id) ? ` <span class="badge ovr">on this screen</span>` : ""}</span><span>${esc(it.price || "")}</span></div>`).join("")
-        || `<div><span class="info">No shared item matches “${esc(q.value)}”.</span></div>`;
-      $$("[data-id]", res).forEach(r => r.onclick = () => addCatalogItem(catId, r.dataset.id));
-      $("#mkNew", el).textContent = term ? `Create shared item “${q.value.trim()}”` : "Create new shared item";
-      $("#mkCustom", el).textContent = term ? `Add “${q.value.trim()}” store-only` : "Add store-only item";
+    if (cat) {
+      const move = d => mutate(loc => { const cs = loc.screens[S.si].categories; const i = cs.findIndex(c => c.id === catId); const j = i + d; if (j < 0 || j >= cs.length) return false; [cs[i], cs[j]] = [cs[j], cs[i]]; });
+      $("#cUp", el).onclick = () => { move(-1); closeSheet(); };
+      $("#cDown", el).onclick = () => { move(1); closeSheet(); };
+      $("#cDel", el).onclick = () => {
+        if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this TV?`)) return;
+        mutate(loc => { const s = loc.screens[S.si]; s.categories = s.categories.filter(c => c.id !== catId); }, "Section deleted"); closeSheet();
+      };
     }
+  }
+  $("#addCatBtn").onclick = () => { if (!screen()) return toast("Set up a TV screen first", true); openCategory(null); };
+
+  // Add item: type a name; matching shared items are suggested, otherwise a new one is created.
+  function openAddItem(catId) {
+    const el = sheet(`<h3>Add item</h3>
+      <label class="field"><span>Item name</span><input id="aName" placeholder="e.g. Corn Dog" autocomplete="off"></label>
+      <div class="sugg" id="aSugg"></div>
+      <label class="field"><span>Price (type it exactly as it should show)</span><input id="aPrice" placeholder="$1.99  ·  2 for $3.00  ·  $0.99 ea or 5 for $4.79"></label>
+      <div class="btns"><button class="btn primary" id="aSave">Add to menu</button></div>`);
+    const q = $("#aName", el), sg = $("#aSugg", el), pr = $("#aPrice", el); let picked = null;
+    const list = () => {
+      const t = q.value.trim().toLowerCase();
+      const rows = t ? Object.entries(S.catalog).map(([id, it]) => ({ id, ...it })).filter(it => it.name.toLowerCase().includes(t)).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8) : [];
+      picked = rows.find(r => r.name.toLowerCase() === t)?.id || null;
+      sg.innerHTML = rows.map(r => `<div data-id="${esc(r.id)}"><span>${esc(r.name)}</span><span>${esc(r.price || "")}</span></div>`).join("");
+      sg.classList.toggle("hidden", !rows.length);
+      $$("[data-id]", sg).forEach(r => r.onclick = () => { q.value = S.catalog[r.dataset.id].name; picked = r.dataset.id; if (!pr.value) pr.value = S.catalog[picked].price || ""; sg.classList.add("hidden"); pr.focus(); });
+    };
     q.oninput = list; list(); q.focus();
-    $("#mkNew", el).onclick = async () => {
-      const name = q.value.trim(); if (!name) return q.focus();
-      const id = slug(name);
-      if (S.catalog[id]) return addCatalogItem(catId, id);
-      await setDoc(doc(db, "menuItems", id), { name, price: "", description: "", photoUrl: "", createdAt: serverTimestamp(), createdBy: S.user.email });
-      await addCatalogItem(catId, id, true);
-    };
-    $("#mkCustom", el).onclick = () => {
-      const name = q.value.trim(); if (!name) return q.focus();
-      const id = uid();
-      mutate(loc => { findCat(loc, catId).items.push({ id, custom: true, name, price: "", description: "" }); }, null);
-      closeSheet(); setTimeout(() => openItemSheet(id), 150);
-    };
-  }
-  async function addCatalogItem(catId, itemId, openAfter) {
-    const id = uid();
-    await mutate(loc => { findCat(loc, catId).items.push({ id, itemId }); }, `Added ${S.catalog[itemId]?.name || "item"}`);
-    closeSheet();
-    if (openAfter || !S.catalog[itemId]?.price) setTimeout(() => openItemSheet(id), 150);
-  }
-
-  // Edit item: name/desc/photo/price with the bulk-vs-single-store choice.
-  function openItemSheet(entryId) {
-    const entry = findEntry(S.loc, entryId); if (!entry) return;
-    const it = resolveItem(entry, S.catalog);
-    const myStores = S.allowed.length;
-    const listedAt = it.custom ? [] : S.allowed.filter(id => (id === S.locId ? S.loc : S.allLocations[id])?.screens?.some(sc => (sc.categories || []).some(c => (c.items || []).some(e => e.itemId === it.itemId))));
-    const el = sheet(`<h3>${esc(it.name || "Item")}</h3>
-      ${it.missing ? `<p class="err">This shared item no longer exists. Remove it from the screen.</p>` : `
-      <label class="field"><span>Name${it.custom ? "" : " (shared — changes at every store)"}</span><input id="iName" value="${esc(it.name)}"></label>
-      <label class="field"><span>Description / Spanish name (optional)</span><input id="iDesc" value="${esc(it.description)}"></label>
-      <div class="field"><span>Photo (optional)</span><div class="photo"><img id="iImg" src="${esc(it.photoUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23222'/%3E%3C/svg%3E")}" alt="">
-        <input type="file" id="iFile" accept="image/*" style="flex:1;min-width:0"></div><small class="info" id="iUpl"></small></div>
-      <label class="field"><span>Price (typed exactly as it should show, e.g. $1.99 or 2 for $3.00)</span><input id="iPrice" value="${esc(it.price)}" placeholder="$0.00"></label>
-      ${it.custom ? `<p class="info">Store-only item: the price applies to ${esc(S.locId)} only.</p>` : `
-      <div class="scope">
-        <label class="on"><input type="radio" name="scope" value="all" checked><div><b>All my stores</b><small>Sets the shared price for “${esc(it.name)}”. Right now ${listedAt.length} of your ${myStores} stores list it (${esc(listedAt.join(", ") || "none")}); they will all show this price.</small></div></label>
-        <label><input type="radio" name="scope" value="one"><div><b>This store only (${esc(S.locId)})</b><small>Keeps the shared price for everyone else; ${esc(S.locId)} shows its own price.${it.override ? ` Currently overriding the shared price of ${esc(it.basePrice || "—")}.` : ""}</small></div></label>
-      </div>`}
-      <div class="switch"><span>Hidden on this screen</span><input type="checkbox" id="iHidden" ${it.hidden ? "checked" : ""}></div>`}
-      <div class="actions"><button class="btn primary" id="iSave" ${it.missing ? "disabled" : ""}>Save</button><button class="btn danger" id="iRemove">Remove from screen</button></div>`);
-
-    $$("input[name=scope]", el).forEach(r => r.onchange = () => $$(".scope label", el).forEach(l => l.classList.toggle("on", $("input", l).checked)));
-    let photoUrl = it.photoUrl || "";
-    $("#iFile", el)?.addEventListener("change", async e => {
-      const f = e.target.files[0]; if (!f) return;
-      $("#iUpl", el).textContent = "Uploading…";
-      try { photoUrl = await uploadToImgbb(f); $("#iImg", el).src = photoUrl; $("#iUpl", el).textContent = "Uploaded ✓"; }
-      catch (err) { $("#iUpl", el).textContent = "Upload failed: " + err.message; }
-    });
-    $("#iRemove", el).onclick = () => {
-      if (!confirm(`Remove "${it.name}" from this screen?`)) return;
-      mutate(loc => { loc.screens[S.screenIdx].categories.forEach(c => { c.items = (c.items || []).filter(e => e.id !== entryId); }); }, "Removed");
+    $("#aSave", el).onclick = async () => {
+      const name = q.value.trim(), price = pr.value.trim(); if (!name) return q.focus();
+      let itemId = picked || slug(name);
+      if (!S.catalog[itemId]) { await setDoc(doc(db, "menuItems", itemId), { name, price, description: "", createdAt: serverTimestamp(), createdBy: S.user.email }); }
+      const entry = { id: uid(), itemId };
+      if (S.catalog[itemId] && price && price !== S.catalog[itemId].price) entry.price = price;   // different here than elsewhere → store-only price
+      await mutate(loc => { findCat(loc, catId).items.push(entry); }, `Added ${name}`);
       closeSheet();
     };
+  }
+
+  // Item: name, price, description, hide, remove, move.
+  function openItem(entryId) {
+    const entry = findEntry(JSON.parse(JSON.stringify(S.loc)), entryId); if (!entry) return;
+    const it = resolveItem(entry, S.catalog);
+    const listedAt = it.custom || it.missing ? [] : S.allowed.filter(id => (S.all[id]?.screens || []).some(s => (s.categories || []).some(c => (c.items || []).some(e => e.itemId === it.itemId))));
+    const others = listedAt.filter(id => id !== S.locId);
+    const el = sheet(`<h3>${esc(it.name)}</h3>
+      ${it.missing ? `<p class="err">This item no longer exists. Remove it.</p>` : `
+      <label class="field"><span>Name</span><input id="iName" value="${esc(it.name)}"></label>
+      <label class="field"><span>Price</span><input id="iPrice" value="${esc(it.price)}" placeholder="$0.00"></label>
+      ${others.length ? `<div class="scope">
+        <label class="on"><input type="radio" name="scope" value="all" checked><div><b>Change price at all my stores</b><small>${esc(listedAt.join(", "))}</small></div></label>
+        <label><input type="radio" name="scope" value="one"><div><b>Only at ${esc(S.loc.name || S.locId)}</b><small>Other stores keep ${esc(it.basePrice || "their price")}.</small></div></label>
+      </div>` : ""}
+      <label class="field"><span>Small text under the name (optional)</span><input id="iDesc" value="${esc(it.description)}" placeholder="e.g. Pollo y queso"></label>
+      <div class="switch"><span>Hide from the TV (keep on the list)</span><input type="checkbox" id="iHidden" ${it.hidden ? "checked" : ""}></div>
+      <div class="rowbtns"><button class="btn" id="iUp">↑ Move up</button><button class="btn" id="iDown">↓ Move down</button></div>`}
+      <div class="btns"><button class="btn primary grow2" id="iSave" ${it.missing ? "disabled" : ""}>Save</button><button class="btn danger" id="iRemove">Remove</button></div>`);
+    $$("input[name=scope]", el).forEach(r => r.onchange = () => $$(".scope label", el).forEach(l => l.classList.toggle("on", $("input", l).checked)));
+    const move = d => mutate(loc => { const c = catOf(loc, entryId); const i = c.items.findIndex(e => e.id === entryId), j = i + d; if (j < 0 || j >= c.items.length) return false; [c.items[i], c.items[j]] = [c.items[j], c.items[i]]; });
+    $("#iUp", el) && ($("#iUp", el).onclick = () => { move(-1); closeSheet(); });
+    $("#iDown", el) && ($("#iDown", el).onclick = () => { move(1); closeSheet(); });
+    $("#iRemove", el).onclick = () => { if (!confirm(`Remove "${it.name}" from this TV?`)) return; mutate(loc => { loc.screens[S.si].categories.forEach(c => { c.items = (c.items || []).filter(e => e.id !== entryId); }); }, "Removed"); closeSheet(); };
     $("#iSave", el).onclick = async () => {
-      const name = $("#iName", el).value.trim(), desc = $("#iDesc", el).value.trim(), price = $("#iPrice", el).value.trim();
-      const hidden = $("#iHidden", el).checked;
+      const name = $("#iName", el).value.trim(), price = $("#iPrice", el).value.trim(), desc = $("#iDesc", el).value.trim(), hidden = $("#iHidden", el).checked;
       if (!name) return;
       try {
-        if (it.custom) {
-          await mutate(loc => { const e = findEntry(loc, entryId); Object.assign(e, { name, description: desc, price, photoUrl, hidden }); }, `Saved ${name} (this store only)`);
-        } else {
-          const scope = $("input[name=scope]:checked", el).value;
-          const base = S.catalog[it.itemId] || {};
-          // Shared fields (name/desc/photo) always go to the catalog.
-          const catalogPatch = {};
-          if (name !== base.name) catalogPatch.name = name;
-          if (desc !== (base.description || "")) catalogPatch.description = desc;
-          if (photoUrl !== (base.photoUrl || "")) catalogPatch.photoUrl = photoUrl;
-          if (scope === "all") {
-            const n = await applyPriceEverywhere(it.itemId, price, catalogPatch);
-            // Local copy may predate the batch above, so clear this item's overrides here too.
-            await mutate(loc => {
-              loc.screens.forEach(sc => (sc.categories || []).forEach(c => (c.items || []).forEach(e => { if (e.itemId === it.itemId) delete e.price; })));
-              findEntry(loc, entryId).hidden = hidden;
-            }, null);
-            toast(`Updated ${name} to ${price || "(no price)"} at ${n} store${n === 1 ? "" : "s"}: ${appliedList}`, "ok", 5000);
-          } else {
-            if (Object.keys(catalogPatch).length) await updateDoc(doc(db, "menuItems", it.itemId), { ...catalogPatch, updatedAt: serverTimestamp(), updatedBy: S.user.email });
-            await mutate(loc => {
-              // Same shared item may appear more than once at this store — keep them consistent.
-              loc.screens.forEach(sc => sc.categories.forEach(c => (c.items || []).forEach(e => { if (e.itemId === it.itemId) { if (price && price !== base.price) e.price = price; else delete e.price; } })));
-              findEntry(loc, entryId).hidden = hidden;
-            }, null);
-            toast(`Updated ${name} to ${price} at ${S.locId} only`, "ok", 4000);
+        if (it.custom) { await mutate(loc => Object.assign(findEntry(loc, entryId), { name, price, description: desc, hidden }), "Saved"); closeSheet(); return; }
+        const base = S.catalog[it.itemId] || {}, patch = {};
+        if (name !== base.name) patch.name = name;
+        if (desc !== (base.description || "")) patch.description = desc;
+        const scope = others.length ? $("input[name=scope]:checked", el).value : "all";
+        if (scope === "all") {
+          // Shared price + clear store-only prices for this item at every store I manage.
+          const batch = writeBatch(db);
+          batch.update(doc(db, "menuItems", it.itemId), { ...patch, price, updatedAt: serverTimestamp(), updatedBy: S.user.email });
+          for (const id of others) {
+            const snap = await getDoc(doc(db, "locations", id)); if (!snap.exists()) continue;
+            const data = snap.data(); let touched = false;
+            (data.screens || []).forEach(s => (s.categories || []).forEach(c => (c.items || []).forEach(e => { if (e.itemId === it.itemId && e.price != null) { delete e.price; touched = true; } })));
+            if (touched) batch.set(doc(db, "locations", id), { screens: data.screens, updatedAt: serverTimestamp(), updatedBy: S.user.email }, { merge: true });
           }
+          await batch.commit();
+          await mutate(loc => { loc.screens.forEach(s => (s.categories || []).forEach(c => (c.items || []).forEach(e => { if (e.itemId === it.itemId) delete e.price; }))); findEntry(loc, entryId).hidden = hidden; });
+          toast(others.length ? `${name} is now ${price} at ${listedAt.length} stores` : `Saved ${name}`);
+        } else {
+          if (Object.keys(patch).length) await updateDoc(doc(db, "menuItems", it.itemId), { ...patch, updatedAt: serverTimestamp(), updatedBy: S.user.email });
+          await mutate(loc => { loc.screens.forEach(s => (s.categories || []).forEach(c => (c.items || []).forEach(e => { if (e.itemId === it.itemId) { if (price && price !== base.price) e.price = price; else delete e.price; } }))); findEntry(loc, entryId).hidden = hidden; });
+          toast(`${name} is ${price} at this store only`);
         }
         closeSheet();
-      } catch (e) { console.error(e); toast("Save failed: " + (e.code || e.message), "bad", 5000); }
+      } catch (e) { console.error(e); toast("Save failed: " + (e.code || e.message), true, 5000); }
     };
   }
 
-  // "All my stores": write the shared price, then clear store-only overrides
-  // for this item at every store the admin manages, so they all show it.
-  let appliedList = "";
-  async function applyPriceEverywhere(itemId, price, catalogPatch) {
-    const batch = writeBatch(db);
-    batch.update(doc(db, "menuItems", itemId), { ...catalogPatch, price, updatedAt: serverTimestamp(), updatedBy: S.user.email });
-    const hits = [];
-    for (const id of S.allowed) {
-      const snap = await getDoc(doc(db, "locations", id));
-      if (!snap.exists()) continue;
-      const data = snap.data(); let touched = false, listed = false;
-      (data.screens || []).forEach(sc => (sc.categories || []).forEach(c => (c.items || []).forEach(e => {
-        if (e.itemId === itemId) { listed = true; if (e.price != null) { delete e.price; touched = true; } }
-      })));
-      if (listed) hits.push(id);
-      if (touched) batch.set(doc(db, "locations", id), { screens: data.screens, updatedAt: serverTimestamp(), updatedBy: S.user.email }, { merge: true });
-    }
-    await batch.commit();
-    appliedList = hits.join(", ") || "none listed yet";
-    return hits.length;
+  // Footer note
+  function openNote() {
+    const el = sheet(`<h3>Note at the bottom of the TV</h3>
+      <label class="field"><span>Text (leave empty for none)</span><input id="nText" value="${esc(screen().note || "")}" placeholder="e.g. All meals come with a 20 oz drink"></label>
+      <div class="btns"><button class="btn primary" id="nSave">Save</button></div>`);
+    $("#nText", el).focus();
+    $("#nSave", el).onclick = () => { const t = $("#nText", el).value.trim(); mutate(loc => { loc.screens[S.si].note = t; }, "Saved"); closeSheet(); };
   }
 
-  // ---------------------------------------------------------------- imgbb --
+  // Store & TV settings
+  $("#settingsBtn").onclick = () => {
+    const sc = screen();
+    const el = sheet(`<h3>${esc(S.loc.name || S.locId)}</h3>
+      <div class="switch"><span>Store is live <small class="info">(shows in the store list)</small></span><input type="checkbox" id="sActive" ${S.loc.active !== false ? "checked" : ""}></div>
+      ${sc ? `<label class="field"><span>Name for TV ${S.si + 1} (only you see this, e.g. “Breakfast board”)</span><input id="sTitle" value="${esc(sc.title || "")}"></label>
+      <p class="info">This TV's link: <a href="index.html?id=${esc(S.locId)}&screen=${S.si + 1}" target="_blank">index.html?id=${esc(S.locId)}&screen=${S.si + 1}</a></p>` : ""}
+      <div class="btns"><button class="btn primary grow2" id="sSave">Save</button>${sc ? `<button class="btn danger" id="sDel">Delete TV ${S.si + 1}</button>` : ""}</div>`);
+    $("#sSave", el).onclick = () => { const active = $("#sActive", el).checked, title = $("#sTitle", el)?.value.trim(); mutate(loc => { loc.active = active; if (sc) loc.screens[S.si].title = title; }, "Saved"); closeSheet(); };
+    if (sc) $("#sDel", el).onclick = () => {
+      const n = (sc.categories || []).reduce((a, c) => a + (c.items || []).length, 0);
+      if (!confirm(`Delete TV ${S.si + 1}${n ? ` and its ${n} items` : ""}? The TV using that link will show "not set up".`)) return;
+      mutate(loc => { loc.screens.splice(S.si, 1); S.si = Math.max(0, S.si - 1); }, "TV screen deleted"); closeSheet();
+    };
+  };
+
+  // -------------------------------------------------------------- imgbb --
   async function uploadToImgbb(file) {
-    const blob = await shrinkImage(file, 1400, 0.85);
+    const blob = await shrink(file, 1400, .85);
     const fd = new FormData(); fd.append("image", blob, "photo.jpg");
     const res = await fetch("https://api.imgbb.com/1/upload?key=" + encodeURIComponent(IMGBB_API_KEY), { method: "POST", body: fd });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error?.message || "imgbb error");
-    return json.data.url;
+    const j = await res.json(); if (!j.success) throw new Error(j.error?.message || "upload error"); return j.data.url;
   }
-  function shrinkImage(file, max, q) {
-    return new Promise((resolve, reject) => {
-      const img = new Image(); const url = URL.createObjectURL(file);
-      img.onload = () => {
-        const s = Math.min(1, max / Math.max(img.width, img.height));
-        const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        c.toBlob(b => b ? resolve(b) : reject(new Error("Could not process image")), "image/jpeg", q);
-      };
-      img.onerror = () => reject(new Error("Not an image"));
-      img.src = url;
-    });
-  }
+  const shrink = (file, max, q) => new Promise((ok, no) => { const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); c.toBlob(b => b ? ok(b) : no(new Error("bad image")), "image/jpeg", q); };
+    img.onerror = () => no(new Error("Not an image")); img.src = u; });
 
-  // --------------------------------------------------------- Image editor --
-  // Floating images live on the screen doc: screens[i].images = [{id,url,x,y,w,label}]
-  // x/y/w are percentages of the TV, so the same layout works on any TV size.
-  // The editor shows the live TV page (with its own images hidden via &edit=1)
-  // underneath, and draws draggable boxes on top at the same scale.
-  $("#imagesBtn").onclick = openImageEditor;
-  function openImageEditor() {
-    if (!S.loc?.screens?.[S.screenIdx]) return toast("Add a screen first", "bad");
-    const screenIdx = S.screenIdx;
-    let images = JSON.parse(JSON.stringify(S.loc.screens[screenIdx].images || []));
-    let selId = null, scale = 1;
-
-    const bg = document.createElement("div"); bg.className = "preview-bg";
-    bg.innerHTML = `<div class="preview-bar lay-bar"><span class="info">Images · ${esc(S.allLocations[S.locId]?.name || S.locId)} · Screen ${screenIdx + 1}</span>
-        <label class="btn small primary">+ Add image<input type="file" accept="image/*" id="layFile"></label>
-        <button class="btn small" id="layDone">Done</button></div>
-      <div class="preview-box"><iframe src="index.html?id=${esc(S.locId)}&screen=${screenIdx + 1}&preview=1&edit=1"></iframe><div class="lay" id="lay"></div></div>
-      <div class="lay-tools" id="layTools"><span class="info">Drag an image to move it. Drag the orange corner to resize. Tap an image to edit its price badge.</span></div>`;
+  // -------------------------------------- TV view: exact preview + photos --
+  // Shows the real TV page scaled to fit. Photos are drawn on top as draggable
+  // boxes (the TV page hides its own copies via &edit=1). Positions are % of
+  // the TV so they land in the same spot on any screen size.
+  $("#previewBtn").onclick = () => openTV(null);
+  $("#photoBtn").onclick = () => { if (!screen()) return toast("Set up a TV screen first", true); openTV(null, true); };
+  function openTV(selectId, pickFile) {
+    const si = S.si; let images = JSON.parse(JSON.stringify(screen()?.images || [])); let selId = selectId || null, scale = 1;
+    const bg = document.createElement("div"); bg.className = "tv-bg";
+    bg.innerHTML = `<div class="tv-bar"><span class="info">${esc(S.loc.name || S.locId)} · TV ${si + 1} — this is what the screen shows</span>
+        <label class="btn small">📷 Add photo<input type="file" accept="image/*" id="tvFile"></label>
+        <a class="btn small" target="_blank" href="index.html?id=${esc(S.locId)}&screen=${si + 1}">Open ↗</a><button class="btn small primary" id="tvClose">Done</button></div>
+      <div class="tv-box"><iframe src="index.html?id=${esc(S.locId)}&screen=${si + 1}&preview=1&edit=1"></iframe><div class="lay" id="lay"></div></div>
+      <div class="tv-tools" id="tvTools"></div>`;
     document.body.appendChild(bg);
-    const box = $(".preview-box", bg), fr = $("iframe", bg), lay = $("#lay", bg), tools = $("#layTools", bg);
-
-    const fit = () => {
-      scale = Math.min(box.clientWidth / 1920, box.clientHeight / 1080);
-      const left = (box.clientWidth - 1920 * scale) / 2, top = (box.clientHeight - 1080 * scale) / 2;
-      for (const el of [fr, lay]) { el.style.transform = `scale(${scale})`; el.style.left = left + "px"; el.style.top = top + "px"; }
-    };
+    const box = $(".tv-box", bg), fr = $("iframe", bg), lay = $("#lay", bg), tools = $("#tvTools", bg);
+    const fit = () => { scale = Math.min(box.clientWidth / 1920, box.clientHeight / 1080); const l = (box.clientWidth - 1920 * scale) / 2, t = (box.clientHeight - 1080 * scale) / 2;
+      for (const el of [fr, lay]) { el.style.transform = `scale(${scale})`; el.style.left = l + "px"; el.style.top = t + "px"; } };
     fit(); window.addEventListener("resize", fit);
-
-    const save = () => mutate(loc => { loc.screens[screenIdx].images = images; }, null);
-
+    const save = () => mutate(loc => { loc.screens[si].images = images; });
     function draw() {
-      lay.innerHTML = images.map(im => `<div class="box ${im.id === selId ? "sel" : ""}" data-id="${esc(im.id)}"
-          style="left:${im.x * 19.2}px;top:${im.y * 10.8}px;width:${im.w * 19.2}px">
-          <img src="${esc(im.url)}" draggable="false" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}
-          ${im.id === selId ? `<span class="rs"></span>` : ""}</div>`).join("");
-      $$(".box", lay).forEach(b => {
-        const im = images.find(x => x.id === b.dataset.id);
-        b.addEventListener("pointerdown", e => {
-          if (e.target.classList.contains("rs")) return startResize(e, im);
-          startDrag(e, im, b);
-        });
-      });
-      drawTools();
-    }
-    function drawTools() {
+      lay.innerHTML = images.map(im => `<div class="box ${im.id === selId ? "sel" : ""}" data-id="${esc(im.id)}" style="left:${im.x * 19.2}px;top:${im.y * 10.8}px;width:${im.w * 19.2}px">
+        <img src="${esc(im.url)}" draggable="false" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}${im.id === selId ? `<span class="rs"></span>` : ""}</div>`).join("");
+      $$(".box", lay).forEach(b => { const im = images.find(x => x.id === b.dataset.id); b.addEventListener("pointerdown", e => e.target.classList.contains("rs") ? startResize(e, im) : startDrag(e, im)); });
       const im = images.find(x => x.id === selId);
-      if (!im) { tools.innerHTML = `<span class="info">${images.length ? "Tap an image to select it. " : ""}Drag to move · orange corner to resize.</span>`; return; }
-      tools.innerHTML = `<span class="info">Price badge:</span><input type="text" id="layLabel" value="${esc(im.label || "")}" placeholder="$2.49 (optional)">
-        <button class="btn small" id="layFront">Bring to front</button><button class="btn small danger" id="layDel">Remove image</button>`;
-      $("#layLabel", tools).onchange = e => { im.label = e.target.value.trim(); draw(); save(); };
-      $("#layFront", tools).onclick = () => { images = images.filter(x => x !== im).concat([im]); draw(); save(); };
-      $("#layDel", tools).onclick = () => { if (!confirm("Remove this image from the screen?")) return; images = images.filter(x => x !== im); selId = null; draw(); save(); };
+      tools.innerHTML = im ? `<span class="info">Price bubble:</span><input type="text" id="tvLabel" value="${esc(im.label || "")}" placeholder="$2.49">
+          <button class="btn small" id="tvFront">Bring to front</button><button class="btn small danger" id="tvDel">Remove photo</button>`
+        : `<span class="info">${images.length ? "Tap a photo to select it. Drag to move, orange corner to resize." : "Tap “Add photo” to put a picture on this TV."}</span>`;
+      if (im) {
+        $("#tvLabel", tools).onchange = e => { im.label = e.target.value.trim(); draw(); save(); };
+        $("#tvFront", tools).onclick = () => { images = images.filter(x => x !== im).concat([im]); draw(); save(); };
+        $("#tvDel", tools).onclick = () => { if (!confirm("Remove this photo?")) return; images = images.filter(x => x !== im); selId = null; draw(); save(); };
+      }
     }
-    function startDrag(e, im, el) {
-      e.preventDefault(); selId = im.id; draw();
-      const target = $(`.box[data-id="${im.id}"]`, lay);
+    function startDrag(e, im) {
+      e.preventDefault(); selId = im.id; draw(); const t = $(`.box[data-id="${im.id}"]`, lay);
       const sx = e.clientX, sy = e.clientY, ox = im.x, oy = im.y; let moved = false;
-      const move = ev => {
-        const dx = (ev.clientX - sx) / scale / 19.2, dy = (ev.clientY - sy) / scale / 10.8;
-        im.x = Math.max(-im.w + 2, Math.min(98, ox + dx)); im.y = Math.max(-5, Math.min(97, oy + dy)); moved = true;
-        target.style.left = im.x * 19.2 + "px"; target.style.top = im.y * 10.8 + "px";
-      };
-      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
-        im.x = +im.x.toFixed(2); im.y = +im.y.toFixed(2); if (moved) save(); };
-      window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+      const mv = ev => { im.x = Math.max(-im.w + 2, Math.min(98, ox + (ev.clientX - sx) / scale / 19.2)); im.y = Math.max(-5, Math.min(97, oy + (ev.clientY - sy) / scale / 10.8)); moved = true; t.style.left = im.x * 19.2 + "px"; t.style.top = im.y * 10.8 + "px"; };
+      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); im.x = +im.x.toFixed(2); im.y = +im.y.toFixed(2); if (moved) save(); };
+      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
     }
     function startResize(e, im) {
-      e.preventDefault(); e.stopPropagation();
-      const target = $(`.box[data-id="${im.id}"]`, lay);
-      const sx = e.clientX, ow = im.w;
-      const move = ev => { im.w = Math.max(4, Math.min(80, ow + (ev.clientX - sx) / scale / 19.2)); target.style.width = im.w * 19.2 + "px"; };
-      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
-        im.w = +im.w.toFixed(2); save(); };
-      window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+      e.preventDefault(); e.stopPropagation(); const t = $(`.box[data-id="${im.id}"]`, lay); const sx = e.clientX, ow = im.w;
+      const mv = ev => { im.w = Math.max(4, Math.min(80, ow + (ev.clientX - sx) / scale / 19.2)); t.style.width = im.w * 19.2 + "px"; };
+      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); im.w = +im.w.toFixed(2); save(); };
+      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
     }
     lay.addEventListener("pointerdown", e => { if (e.target === lay) { selId = null; draw(); } });
-
-    $("#layFile", bg).addEventListener("change", async e => {
-      const f = e.target.files[0]; if (!f) return;
-      toast("Uploading image…", "ok", 8000);
-      try {
-        const url = await uploadToImgbb(f);
-        const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "" };
-        images.push(im); selId = im.id; draw(); await save(); toast("Image added — drag it into place");
-      } catch (err) { toast("Upload failed: " + err.message, "bad", 5000); }
+    const fileInput = $("#tvFile", bg);
+    fileInput.addEventListener("change", async e => {
+      const f = e.target.files[0]; if (!f) return; toast("Uploading photo…", false, 8000);
+      try { const url = await uploadToImgbb(f); const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "" }; images.push(im); selId = im.id; draw(); await save(); toast("Photo added — drag it where you want it"); }
+      catch (err) { toast("Upload failed: " + err.message, true, 5000); }
       e.target.value = "";
     });
-    $("#layDone", bg).onclick = () => { window.removeEventListener("resize", fit); bg.remove(); };
+    $("#tvClose", bg).onclick = () => { window.removeEventListener("resize", fit); bg.remove(); render(); };
     draw();
+    if (pickFile) fileInput.click();
   }
-
-  // -------------------------------------------------------------- Preview --
-  $("#previewBtn").onclick = () => {
-    const bg = document.createElement("div"); bg.className = "preview-bg";
-    bg.innerHTML = `<div class="preview-bar"><span class="info">${esc(S.allLocations[S.locId]?.name || S.locId)} · Screen ${S.screenIdx + 1} — live, updates as you save</span>
-      <a class="btn small" target="_blank" href="index.html?id=${esc(S.locId)}&screen=${S.screenIdx + 1}">Open ↗</a><button class="btn small primary" id="pvClose">Close</button></div>
-      <div class="preview-box"><iframe src="index.html?id=${esc(S.locId)}&screen=${S.screenIdx + 1}&preview=1"></iframe></div>`;
-    document.body.appendChild(bg);
-    const fit = () => {
-      const box = $(".preview-box", bg), fr = $("iframe", bg);
-      const s = Math.min(box.clientWidth / 1920, box.clientHeight / 1080);
-      fr.style.transform = `scale(${s})`;
-      fr.style.left = ((box.clientWidth - 1920 * s) / 2) + "px"; fr.style.top = ((box.clientHeight - 1080 * s) / 2) + "px";
-    };
-    fit(); window.addEventListener("resize", fit);
-    $("#pvClose", bg).onclick = () => { window.removeEventListener("resize", fit); bg.remove(); };
-  };
 </script>
 </body>
 </html>
