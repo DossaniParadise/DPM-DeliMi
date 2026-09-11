@@ -61,12 +61,17 @@
   .item .name { flex: 1 1 auto; font-weight: 500; }
   .item .dots { flex: 1 1 auto; border-bottom: 2px dotted #444; transform: translateY(-.35em); min-width: 1em; }
   .item .price { flex: 0 0 auto; font-weight: 700; white-space: nowrap; letter-spacing: .04em; color: #fff; }
+  .item .price.soldout { color: #e5484d; font-weight: 800; }
   .item .desc { display: block; font-weight: 400; color: var(--ink-dim); font-size: .78em; line-height: 1.25; }
   .screen-note { text-align: center; color: var(--orange); font-weight: 700; font-size: calc(var(--fs) * 1.05); margin-top: 1vh; }
 
   /* Floating images placed by the admin "Images" editor. x/y/w are % of the TV. */
-  .fimg { position: fixed; z-index: 5; pointer-events: none; }
+  .fimg { position: fixed; z-index: 5; pointer-events: none; border-radius: .8vw; }
   .fimg img { display: block; width: 100%; height: auto; border-radius: .8vw; box-shadow: 0 .4vw 1.6vw rgba(0,0,0,.65); }
+  /* cropped photo: fixed frame, picture zoomed/panned inside it */
+  .fimg.crop { overflow: hidden; box-shadow: 0 .4vw 1.6vw rgba(0,0,0,.65); }
+  .fimg.crop img { position: absolute; left: 0; top: 0; max-width: none; border-radius: 0; box-shadow: none; }
+  .fimg.crop .plabel { z-index: 1; }
   .fimg .plabel { position: absolute; left: -2.2vw; top: 50%; transform: translateY(-50%); width: 6vw; height: 6vw; border-radius: 50%;
     background: var(--orange); color: #000; border: .25vw solid #fff; box-shadow: 0 .3vw 1vw rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.6vw; text-align: center; line-height: 1; padding: .3vw; }
@@ -83,7 +88,10 @@
   .cat.free[data-align="left"] h2, .cat.free[data-align="left"] .note { text-align: left; }
   .cat.free[data-align="right"] h2, .cat.free[data-align="right"] .note { text-align: right; }
   .screen-note.free { margin: 0; font-size: calc(var(--fs) * 1.05 * var(--k)); }
-  .ftext { font-size: calc(var(--fs) * 1.1 * var(--k)); font-weight: 600; color: var(--ink); line-height: 1.25; white-space: pre-wrap; }
+  .ftext { font-size: calc(var(--fs) * 1.1 * var(--k)); font-weight: 600; color: var(--ink); line-height: var(--lh, 1.25); white-space: pre-wrap; overflow-wrap: break-word; }
+  .ftext[data-wrap="no"] { white-space: pre; }
+  .ftext[data-bold="1"], .screen-note[data-bold="1"] { font-weight: 800; }
+  .ftext[data-color="black"] { color: #000; }
   .ftext[data-color="orange"] { color: var(--orange); }
   .ftext[data-color="dim"] { color: var(--ink-dim); }
   .ftext[data-color="green"] { color: var(--green); }
@@ -185,11 +193,11 @@
     const screen = (loc?.screens || [])[idx];
     if (!screen) return null;
     return { ...screen, categories: (screen.categories || []).map(cat => ({ ...cat, items: (cat.items || []).map(entry => {
-      if (entry.custom) return { name: entry.name || "", price: entry.price || "", description: entry.description || "", hidden: !!entry.hidden, missing: false };
+      if (entry.custom) return { name: entry.name || "", price: entry.price || "", description: entry.description || "", hidden: !!entry.hidden, soldOut: !!entry.soldOut, missing: false };
       const base = catalog[entry.itemId];
       if (!base) return { name: "", price: "", description: "", hidden: true, missing: true };
       const override = entry.price != null && entry.price !== "";
-      return { name: base.name, price: override ? entry.price : (base.price || ""), description: entry.description ?? base.description ?? "", hidden: !!entry.hidden, missing: false };
+      return { name: base.name, price: override ? entry.price : (base.price || ""), description: entry.description ?? base.description ?? "", hidden: !!entry.hidden, soldOut: !!entry.soldOut, missing: false };
     }) })) };
   }
 
@@ -264,26 +272,36 @@
     appEl.className = "";
     const free = screen.layout === "free";
     document.body.classList.toggle("free-layout", free);
-    const boxStyle = b => `left:${+(b?.x ?? 0)}%;top:${+(b?.y ?? 0)}%;width:${+(b?.w ?? 40)}%;--k:${+(b?.k || 1)}`;
+    // Layer order: sections and note sit at 10, text at 20, photos at 30 unless the editor set a "z".
+    const zOf = (b, def) => 10 + (Number.isFinite(+b?.z) ? +b.z : def);
+    const boxStyle = (b, def = 0) => `left:${+(b?.x ?? 0)}%;top:${+(b?.y ?? 0)}%;width:${+(b?.w ?? 40)}%;--k:${+(b?.k || 1)};z-index:${zOf(b, def)}`
+      + (b?.h ? `;min-height:${+b.h}%` : "") + (b?.lh ? `;--lh:${+b.lh}` : "") + (b?.opacity != null && b.opacity !== "" ? `;opacity:${+b.opacity}` : "");
+    const imgHtml = im => {
+      const z = zOf(im, 20), op = im.opacity != null && im.opacity !== "" ? `opacity:${+im.opacity};` : "";
+      if (im.h) {   // cropped: fixed frame, picture zoomed & panned inside
+        return `<div class="fimg crop" style="left:${+im.x || 0}%;top:${+im.y || 0}%;width:${+im.w || 15}%;height:${+im.h}%;z-index:${z};${op}">
+          <img src="${esc(im.url)}" alt="" style="width:${(+im.zoom || 1) * 100}%;left:${+im.ox || 0}%;top:${+im.oy || 0}%">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`;
+      }
+      return `<div class="fimg" style="left:${+im.x || 0}%;top:${+im.y || 0}%;width:${+im.w || 15}%;z-index:${z};${op}"><img src="${esc(im.url)}" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`;
+    };
     const catHtml = cat => { const items = cat.items.filter(it => !it.hidden && !it.missing); const b = free ? (cat.box || {}) : null;
-      return `<section class="cat ${free ? "free" : (items.length > 14 ? "wide" : "")}" data-cid="${esc(cat.id)}" ${free ? `style="${boxStyle(b)}" data-align="${esc(b.align || "center")}" data-cols="${b.cols === 2 ? 2 : 1}"` : ""}>
+      return `<section class="cat ${free ? "free" : (items.length > 14 ? "wide" : "")}" data-cid="${esc(cat.id)}" ${free ? `style="${boxStyle(b, 0)}" data-align="${esc(b.align || "center")}" data-cols="${b.cols === 2 ? 2 : 1}"` : ""}>
           <h2>${esc(cat.name)}</h2>
           ${cat.note ? `<p class="note">${esc(cat.note)}</p>` : ""}
           ${items.map(it => `<div class="item">
             <span class="name">${esc(it.name)}${it.description ? `<span class="desc">${esc(it.description)}</span>` : ""}</span>
-            <span class="dots"></span><span class="price">${esc(it.price)}</span></div>`).join("")}
+            <span class="dots"></span>${it.soldOut ? `<span class="price soldout">Sold Out!</span>` : `<span class="price">${esc(it.price)}</span>`}</div>`).join("")}
         </section>`; };
     appEl.innerHTML = `
       <div class="hdr"><img class="logo" src="${esc(locationDoc.logoUrl || LOGOS[screen.brand || locationDoc.brand] || LOGOS.deli)}" alt="${esc(BRAND_NAMES[screen.brand || locationDoc.brand] || "Paradise Deli")}">
         <span class="store">${esc(locationDoc.name || locId)}</span></div>
       ${free ? `<div class="rail"></div><div class="board"></div>
         ${screen.categories.map(catHtml).join("")}
-        ${screen.note ? `<div class="screen-note free" data-note="1" style="${boxStyle(screen.noteBox || { x: 10, y: 92, w: 80 })}" data-align="${esc(screen.noteBox?.align || "center")}">${esc(screen.note)}</div>` : ""}
-        ${(screen.texts || []).map(t => `<div class="ftext free" data-tid="${esc(t.id)}" style="${boxStyle(t)}" data-align="${esc(t.align || "center")}" data-color="${esc(t.color || "white")}">${esc(t.text)}</div>`).join("")}`
+        ${screen.note ? `<div class="screen-note free" data-note="1" style="${boxStyle(screen.noteBox || { x: 10, y: 92, w: 80 }, 0)}" data-align="${esc(screen.noteBox?.align || "center")}" data-bold="${screen.noteBox?.bold ? 1 : 0}">${esc(screen.note)}</div>` : ""}
+        ${(screen.texts || []).map(t => `<div class="ftext free" data-tid="${esc(t.id)}" style="${boxStyle(t, 10)}" data-align="${esc(t.align || "center")}" data-color="${esc(t.color || "white")}" data-wrap="${t.wrap === false ? "no" : "yes"}" data-bold="${t.bold === false ? 0 : 1}">${esc(t.text)}</div>`).join("")}`
       : `<div class="board"><div class="menu">${screen.categories.map(catHtml).join("")}</div>
         ${screen.note ? `<div class="screen-note">${esc(screen.note)}</div>` : ""}</div>`}
-      ${(screen.images || []).map(im => `<div class="fimg" style="left:${+im.x || 0}%;top:${+im.y || 0}%;width:${+im.w || 15}%">
-        <img src="${esc(im.url)}" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`).join("")}`;
+      ${(screen.images || []).map(imgHtml).join("")}`;
     showStatus(`Updated ${fmtTime()}${lastFromCache ? " · showing offline copy" : ""}`, lastFromCache);
     if (free) document.documentElement.style.setProperty("--fs", "1.55vw"); else fitToScreen();
   }
