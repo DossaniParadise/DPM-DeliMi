@@ -145,8 +145,8 @@
   // Everything this page needs is in this one file. Keys are public by design
   // (Firebase web apps work this way); firestore.rules protect the data.
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
-           doc, collection, onSnapshot, query, where }
+  import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, memoryLocalCache,
+           doc, collection, onSnapshot, query, where, getDocFromServer, getDocsFromServer }
     from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -168,13 +168,23 @@
   const BRAND_NAMES = { deli: "Paradise Deli", taqueria: "Paradise Taqueria", quickstop: "Paradise Quick Stop" };
 
   const app = initializeApp(firebaseConfig);
+  const earlyParams = new URLSearchParams(location.search);
+  const isEmbedded = earlyParams.get("preview") === "1" || earlyParams.get("edit") === "1" || window.self !== window.top;
   let db;
-  try {
-    // IndexedDB persistence: a kiosk that boots before the network is up shows the last menu it saw.
-    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
-  } catch (e) {
-    console.warn("Persistent cache unavailable, using memory cache", e);
+  if (isEmbedded) {
+    // Editor previews / iframes: plain memory cache. They must never share (or fight over) the
+    // on-disk cache of a real TV open in another tab — that is what makes live updates stall.
     db = initializeFirestore(app, { localCache: memoryLocalCache() });
+  } else {
+    try {
+      // Real TV: IndexedDB persistence, so a kiosk that boots before the network is up shows the
+      // last menu it saw. Single-tab mode = this tab talks to Firestore itself (no leader election);
+      // a second tab on the same browser simply falls back to a memory cache and stays live.
+      db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({ forceOwnership: false }) }) });
+    } catch (e) {
+      console.warn("Persistent cache unavailable, using memory cache", e);
+      db = initializeFirestore(app, { localCache: memoryLocalCache() });
+    }
   }
 
   // -------------------------------------------------------------- Helpers --
@@ -222,12 +232,34 @@
   // ---------------------------------------------------------------- Kiosk --
   if (locId) {
     $("#adminLink").href = `admin.html?id=${encodeURIComponent(locId)}&screen=${screenNo}`;
-    onSnapshot(doc(db, "locations", locId), snap => {
-      gotData = true; locationDoc = snap.exists() ? snap.data() : false; lastFromCache = snap.metadata.fromCache; render();
-    }, err => fail("Firestore error", err.code + ": " + err.message));
-    onSnapshot(collection(db, "menuItems"), snap => {
-      const c = {}; snap.forEach(d => { c[d.id] = d.data(); }); catalog = c; gotData = true; render();
-    }, err => fail("Firestore error", err.code + ": " + err.message));
+    let unsubLoc = null, unsubCat = null;
+    const applyLoc = (snap) => { gotData = true; locationDoc = snap.exists() ? snap.data() : false; lastFromCache = !!snap.metadata?.fromCache; render(); };
+    const applyCat = (snap) => { const c = {}; snap.forEach(d => { c[d.id] = d.data(); }); catalog = c; gotData = true; render(); };
+    const subscribe = () => {
+      unsubLoc?.(); unsubCat?.();
+      unsubLoc = onSnapshot(doc(db, "locations", locId), applyLoc, err => fail("Firestore error", err.code + ": " + err.message));
+      unsubCat = onSnapshot(collection(db, "menuItems"), applyCat, err => fail("Firestore error", err.code + ": " + err.message));
+    };
+    subscribe();
+    // Watchdog: the live stream can silently stall (sleep/wake, network blips, a browser that
+    // throttled the tab). Every few minutes, and whenever the TV comes back online or visible,
+    // ask the server directly; if it has something newer, show it and re-open the stream.
+    const sameData = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    let checking = false;
+    async function verifyFresh() {
+      if (checking || !navigator.onLine) return; checking = true;
+      try {
+        const [ls, cs] = await Promise.all([getDocFromServer(doc(db, "locations", locId)), getDocsFromServer(collection(db, "menuItems"))]);
+        const serverLoc = ls.exists() ? ls.data() : false; const c = {}; cs.forEach(d => { c[d.id] = d.data(); });
+        const stale = !sameData(serverLoc, locationDoc) || !sameData(c, catalog);
+        if (stale) { console.warn("Live stream was behind the server — resyncing"); applyLoc(ls); applyCat(cs); subscribe(); }
+        else if (lastFromCache) { lastFromCache = false; render(); }
+      } catch (e) { console.warn("Freshness check failed", e); }
+      checking = false;
+    }
+    setInterval(verifyFresh, 3 * 60 * 1000);
+    window.addEventListener("online", () => setTimeout(verifyFresh, 1500));
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") verifyFresh(); });
     scheduleDailyReload();
   } else {
     // No ?id= → dropdown picker + admin login link.
