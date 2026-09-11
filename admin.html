@@ -96,6 +96,22 @@
   .lay .box .plabel { position: absolute; left: -42px; top: 50%; transform: translateY(-50%); width: 115px; height: 115px; border-radius: 50%; background: var(--orange); color: #fff; font-family: var(--font-head); border: 5px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 31px; pointer-events: none; text-align: center; line-height: 1; }
   .lay .box .rs { position: absolute; right: -26px; bottom: -26px; width: 56px; height: 56px; border-radius: 50%; background: var(--orange); border: 4px solid #fff; cursor: nwse-resize; touch-action: none; }
   .lay .box .rs::after { content: "⤡"; color: #000; font-size: 30px; font-weight: 700; display: flex; align-items: center; justify-content: center; height: 100%; }
+  .lay .box .hd { position: absolute; width: 44px; height: 44px; border-radius: 50%; background: var(--orange); border: 4px solid #000; touch-action: none; }
+  .lay .box .hd.se { right: -22px; bottom: -22px; cursor: nwse-resize; }
+  .lay .box .hd.e { right: -22px; top: 50%; margin-top: -22px; cursor: ew-resize; }
+  .lay .box .hd.s { bottom: -22px; left: 50%; margin-left: -22px; cursor: ns-resize; }
+  .lay .box .hd.se::after { content: "⤡"; color: #000; font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; height: 100%; }
+  .lay .box.img.crop { overflow: hidden; border-radius: 15px; }
+  .lay .box.img.crop img { position: absolute; max-width: none; border-radius: 0; box-shadow: none; }
+  .lay .box.img.crop.sel { overflow: visible; }
+  .lay .box.img.crop.cropping::before { content: ""; position: absolute; inset: 0; border-radius: 15px; box-shadow: 0 0 0 4000px rgba(0,0,0,.55); z-index: 1; pointer-events: none; }
+  .lay .box.img.crop.cropping img { z-index: 0; opacity: .95; }
+  .lay .box.img.crop.sel .plabel, .lay .box.img.crop.sel .tag, .lay .box.img.crop.sel .hd { z-index: 2; }
+  .lay .box.img.cropping { cursor: grab; }
+  .lay .inline-edit { position: absolute; font-family: 'Poppins', 'Nunito', Arial, sans-serif; background: rgba(0,0,0,.35); border: 3px solid var(--orange); border-radius: 8px; padding: 0; margin: 0; resize: none; overflow: hidden; outline: none; z-index: 500; }
+  .numrow { display: flex; align-items: center; gap: 8px; }
+  .num { width: 74px; background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 8px; font-size: 14px; }
+  input[type=range] { width: 100%; accent-color: var(--orange); }
   .lay .box .tag { position: absolute; left: 0; top: -36px; background: var(--teal); color: #063536; font-weight: 700; font-size: 22px; padding: 2px 12px; border-radius: 8px; pointer-events: none; text-transform: uppercase; letter-spacing: .05em; opacity: 0; }
   .lay .box:hover .tag, .lay .box.sel .tag { opacity: 1; }
   .panel { width: 340px; flex: 0 0 340px; border-left: 1px solid var(--line); background: #052a2b; overflow-y: auto; padding: 14px; }
@@ -127,6 +143,7 @@
   .m-sec .mi .n { flex: 1; min-width: 0; }
   .m-sec .mi .n small { display: block; color: var(--dim); font-size: 12px; }
   .m-sec .mi .p { font-weight: 700; white-space: nowrap; }
+  .sold { color: #e5484d; font-weight: 800; }
   .m-sec .mi.is-hidden .n { opacity: .45; text-decoration: line-through; }
   .m-sec .mi .h { color: var(--dim); cursor: grab; touch-action: none; padding: 4px; }
   .m-sec .add { padding: 10px 12px; border-top: 1px dashed var(--line); color: var(--orange); font-weight: 600; cursor: pointer; }
@@ -252,12 +269,12 @@
   function slug(name) { return String(name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || uid(); }
   function storeSort(a, b) { const na = /PQS(\d+)/.exec(a), nb = /PQS(\d+)/.exec(b); if (na && nb) return +na[1] - +nb[1]; if (na) return -1; if (nb) return 1; return a.localeCompare(b); }
   function resolveItem(entry, catalog) {
-    if (entry.custom) return { id: entry.id, custom: true, name: entry.name || "", price: entry.price || "", description: entry.description || "", hidden: !!entry.hidden, override: false, missing: false };
+    if (entry.custom) return { id: entry.id, custom: true, name: entry.name || "", price: entry.price || "", description: entry.description || "", hidden: !!entry.hidden, soldOut: !!entry.soldOut, override: false, missing: false };
     const base = catalog[entry.itemId];
     if (!base) return { id: entry.id, itemId: entry.itemId, name: "(missing item)", price: "", description: "", hidden: !!entry.hidden, override: false, missing: true };
     const override = entry.price != null && entry.price !== "" && entry.price !== base.price;
     return { id: entry.id, itemId: entry.itemId, name: base.name, price: override ? entry.price : (base.price || ""), basePrice: base.price || "",
-      description: entry.description ?? base.description ?? "", hidden: !!entry.hidden, override, missing: false };
+      description: entry.description ?? base.description ?? "", hidden: !!entry.hidden, soldOut: !!entry.soldOut, override, missing: false };
   }
   function locationIdFromRestaurant(r) {
     if (!r) return null;
@@ -386,10 +403,13 @@
   // ======================================================== DESKTOP CANVAS ==
   // The live TV page in an iframe (with &edit=1 so it hides its own photos),
   // scaled to fit, with draggable boxes drawn on top for every section, photo,
-  // text and the bottom note. Positions are % of the TV.
+  // text and the bottom note. Positions are % of the TV (1920×1080 space).
+  const Z_DEFAULT = { cat: 0, note: 0, text: 10, image: 20 };
+  const zOf = b => Number.isFinite(+b.o.z) ? +b.o.z : Z_DEFAULT[b.kind];
+  const FS = 1920 * .0155;   // the TV's base font size in px (1.55vw of 1920)
   const canvas = (() => {
     const box = $("#tvBox"), lay = $("#lay");
-    let fr = null, key = null, scale = 1, doc_ = null, sc = null, frozenFor = null;
+    let fr = null, key = null, scale = 1, doc_ = null, sc = null, frozenFor = null, cropMode = false, editing = null, lastTap = { id: null, t: 0 };
     const pct = (px, ax) => +(px / (ax === "x" ? 19.2 : 10.8)).toFixed(2);
     function fit() {
       if (!fr) return;
@@ -397,7 +417,7 @@
       const l = (box.clientWidth - 1920 * scale) / 2, t = (box.clientHeight - 1080 * scale) / 2;
       for (const el of [fr, lay]) { el.style.transform = `scale(${scale})`; el.style.left = l + "px"; el.style.top = t + "px"; }
     }
-    function unmount() { fr?.remove(); fr = null; key = null; doc_ = null; lay.innerHTML = ""; }
+    function unmount() { fr?.remove(); fr = null; key = null; doc_ = null; lay.innerHTML = ""; cropMode = false; }
     function sync() {
       const k = S.locId + "/" + S.si;
       sc = JSON.parse(JSON.stringify(screen() || {})); sc.images = sc.images || []; sc.texts = sc.texts || []; sc.categories = sc.categories || [];
@@ -405,11 +425,10 @@
         unmount(); key = k;
         fr = document.createElement("iframe"); fr.src = `index.html?id=${encodeURIComponent(S.locId)}&screen=${S.si + 1}&preview=1&edit=1`;
         box.insertBefore(fr, lay); fit();
-        fr.addEventListener("load", () => { try { doc_ = fr.contentDocument; new MutationObserver(() => setTimeout(draw, 40)).observe(doc_.body, { childList: true, subtree: true, attributes: true }); } catch (e) {} setTimeout(afterLoad, 350); });
-      } else setTimeout(draw, 60);
+        fr.addEventListener("load", () => { try { doc_ = fr.contentDocument; new MutationObserver(() => { if (!editing) setTimeout(draw, 40); }).observe(doc_.body, { childList: true, subtree: true, attributes: true }); } catch (e) {} setTimeout(afterLoad, 350); });
+      } else if (!editing) setTimeout(draw, 60);
     }
     function afterLoad() {
-      // Free layout is the default: a TV that is still on automatic gets frozen where it is.
       if (screen() && sc.layout !== "free" && frozenFor !== key && (sc.categories.length || sc.note)) { frozenFor = key; arrange(true); }
       else draw();
     }
@@ -430,9 +449,9 @@
       const place = f => { let y1 = top0, y2 = top0;
         sc.categories.forEach((c, i) => { const x_ = m[i], h1 = (x_.h2 + x_.note + x_.n * x_.rowH) * f + 30;
           if (h1 > colH && x_.n > 6) { const y = Math.max(y1, y2), h = (x_.h2 + x_.note + Math.ceil(x_.n / 2) * x_.rowH) * f + 30;
-            c.box = { x: pct(col1x, "x"), y: pct(y, "y"), w: pct(col2x + colW - col1x, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 2 }; y1 = y2 = y + h; }
+            c.box = { ...(c.box || {}), x: pct(col1x, "x"), y: pct(y, "y"), w: pct(col2x + colW - col1x, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 2 }; y1 = y2 = y + h; }
           else { const c1 = y1 + h1 <= top0 + colH || y1 <= y2, x = c1 ? col1x : col2x, y = c1 ? y1 : y2;
-            c.box = { x: pct(x, "x"), y: pct(y, "y"), w: pct(colW, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 1 }; if (c1) y1 = y + h1; else y2 = y + h1; } });
+            c.box = { ...(c.box || {}), x: pct(x, "x"), y: pct(y, "y"), w: pct(colW, "x"), k: +(k0 * f).toFixed(2), align: "center", cols: 1 }; if (c1) y1 = y + h1; else y2 = y + h1; } });
         return Math.max(y1, y2); };
       const bottom = place(1); if (bottom > top0 + colH) place(Math.max(.6, (colH / (bottom - top0)) * .97));
       if (sc.note) sc.noteBox = sc.noteBox || { x: 10, y: 93, w: 80, k: k0, align: "center" };
@@ -443,7 +462,7 @@
       sc.categories.forEach(c => { c.box = c.box || { x: 5, y: 25, w: 42, k: 1, align: "center", cols: 1 }; list.push({ id: "cat:" + c.id, kind: "cat", o: c.box, cat: c }); });
       if (sc.note) { sc.noteBox = sc.noteBox || { x: 10, y: 93, w: 80, k: 1, align: "center" }; list.push({ id: "note", kind: "note", o: sc.noteBox }); }
       sc.texts.forEach(t => list.push({ id: "text:" + t.id, kind: "text", o: t, text: t }));
-      return list;
+      return list.sort((p, q) => zOf(p) - zOf(q));
     }
     function liveEl(b) {
       if (!doc_) return null;
@@ -452,56 +471,135 @@
       if (b.kind === "text") return doc_.querySelector(`.ftext[data-tid="${b.text.id}"]`);
       return null;
     }
+    // Resize handles: e = width, s = height, se = both (photos keep their shape unless cropped).
+    const handles = b => {
+      if (b.kind === "image") return b.o.h ? `<span class="hd se"></span><span class="hd e"></span><span class="hd s"></span>` : `<span class="hd se"></span><span class="hd e"></span>`;
+      if (b.kind === "cat") return `<span class="hd e"></span>`;
+      return `<span class="hd se"></span><span class="hd e"></span><span class="hd s"></span>`;
+    };
     function draw() {
-      if (!fr || !sc) return;
+      if (!fr || !sc || editing) return;
       const bs = boxes();
-      lay.innerHTML = bs.map(b => { const o = b.o, sel = b.id === S.sel;
-        if (b.kind === "image") return `<div class="box img ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px"><img src="${esc(o.url)}" draggable="false" alt="">${o.label ? `<span class="plabel">${esc(o.label)}</span>` : ""}<span class="tag">photo</span>${sel ? `<span class="rs"></span>` : ""}</div>`;
-        const el = liveEl(b), h = el ? el.getBoundingClientRect().height : 60;
-        return `<div class="box txt ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px;height:${h}px"><span class="tag">${b.kind === "cat" ? esc(b.cat.name) : b.kind}</span>${sel ? `<span class="rs"></span>` : ""}</div>`; }).join("");
-      $$(".box", lay).forEach(el => { const b = bs.find(x => x.id === el.dataset.id); el.addEventListener("pointerdown", e => e.target.classList.contains("rs") ? startResize(e, b) : startDrag(e, b)); });
+      lay.innerHTML = bs.map(b => { const o = b.o, sel = b.id === S.sel, op = o.opacity != null && o.opacity !== "" ? `opacity:${o.opacity};` : "";
+        if (b.kind === "image") {
+          const frame = o.h ? `height:${o.h * 10.8}px;` : "";
+          const inner = o.h ? `style="width:${(o.zoom || 1) * 100}%;left:${o.ox || 0}%;top:${o.oy || 0}%"` : "";
+          return `<div class="box img ${o.h ? "crop" : ""} ${sel ? "sel" : ""} ${sel && cropMode ? "cropping" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px;${frame}z-index:${100 + zOf(b)};${op}">
+            <img src="${esc(o.url)}" draggable="false" alt="" ${inner}>${o.label ? `<span class="plabel">${esc(o.label)}</span>` : ""}<span class="tag">${sel && cropMode ? "drag to pan · corners to size the frame" : "photo"}</span>${sel ? handles(b) : ""}</div>`;
+        }
+        const el = liveEl(b), live = el ? el.getBoundingClientRect().height : 60, h = Math.max(live, (o.h || 0) * 10.8);
+        return `<div class="box txt ${sel ? "sel" : ""}" data-id="${esc(b.id)}" style="left:${o.x * 19.2}px;top:${o.y * 10.8}px;width:${o.w * 19.2}px;height:${h}px;z-index:${100 + zOf(b)}"><span class="tag">${b.kind === "cat" ? esc(b.cat.name) : b.kind}${b.kind === "text" ? " · double-click to type" : ""}</span>${sel ? handles(b) : ""}</div>`; }).join("");
+      $$(".box", lay).forEach(el => {
+        const b = bs.find(x => x.id === el.dataset.id);
+        el.addEventListener("pointerdown", e => {
+          const hd = e.target.closest(".hd"); if (hd) return startResize(e, b, hd.classList.contains("se") ? "se" : hd.classList.contains("e") ? "e" : "s");
+          // double-click → type in place (pointerdown's preventDefault swallows the native dblclick, so time it ourselves)
+          const now = Date.now(); if (b.kind === "text" && lastTap.id === b.id && now - lastTap.t < 400) { lastTap = { id: null, t: 0 }; e.preventDefault(); return editText(b); }
+          lastTap = { id: b.id, t: now };
+          if (b.kind === "image" && cropMode && S.sel === b.id) return startPan(e, b); startDrag(e, b); });
+      });
     }
-    function live(b) { const el = liveEl(b); if (!el) return; el.style.left = b.o.x + "%"; el.style.top = b.o.y + "%"; el.style.width = b.o.w + "%"; }
+    function live(b) { const el = liveEl(b); if (!el) return; el.style.left = b.o.x + "%"; el.style.top = b.o.y + "%"; el.style.width = b.o.w + "%"; if (b.kind !== "cat") el.style.minHeight = b.o.h ? b.o.h + "%" : ""; }
+    const track = (mv, done) => { const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); done(); };
+      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up); };
+    function select(id) { const changed = S.sel !== id; S.sel = id; if (changed) cropMode = false; draw(); if (changed) renderPanel(); }
     function startDrag(e, b) {
-      e.preventDefault(); const changed = S.sel !== b.id; S.sel = b.id; draw(); if (changed) renderPanel();
+      e.preventDefault(); select(b.id);
       const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o, sx = e.clientX, sy = e.clientY, ox = o.x, oy = o.y; let moved = false;
-      const mv = ev => { o.x = Math.max(-o.w + 2, Math.min(98, ox + (ev.clientX - sx) / scale / 19.2)); o.y = Math.max(-5, Math.min(98, oy + (ev.clientY - sy) / scale / 10.8)); moved = true; t.style.left = o.x * 19.2 + "px"; t.style.top = o.y * 10.8 + "px"; live(b); };
-      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); o.x = +o.x.toFixed(2); o.y = +o.y.toFixed(2); if (moved) save(); };
-      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+      track(ev => { o.x = Math.max(-o.w + 2, Math.min(98, ox + (ev.clientX - sx) / scale / 19.2)); o.y = Math.max(-5, Math.min(98, oy + (ev.clientY - sy) / scale / 10.8)); moved = true; t.style.left = o.x * 19.2 + "px"; t.style.top = o.y * 10.8 + "px"; live(b); },
+        () => { o.x = +o.x.toFixed(2); o.y = +o.y.toFixed(2); if (moved) save(); });
     }
-    function startResize(e, b) {
-      e.preventDefault(); e.stopPropagation(); const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o, sx = e.clientX, ow = o.w;
-      const mv = ev => { o.w = Math.max(4, Math.min(100, ow + (ev.clientX - sx) / scale / 19.2)); t.style.width = o.w * 19.2 + "px"; live(b); };
-      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); o.w = +o.w.toFixed(2); save(); };
-      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+    function startResize(e, b, hd) {
+      e.preventDefault(); e.stopPropagation(); const t = $(`.box[data-id="${b.id}"]`, lay), o = b.o, sx = e.clientX, sy = e.clientY, ow = o.w, oh = o.h || t.getBoundingClientRect().height / scale / 10.8;
+      const ratio = b.kind === "image" && !o.h ? null : 1;
+      track(ev => {
+        const dx = (ev.clientX - sx) / scale / 19.2, dy = (ev.clientY - sy) / scale / 10.8;
+        if (hd !== "s") { o.w = +Math.max(3, Math.min(100, ow + dx)).toFixed(2); t.style.width = o.w * 19.2 + "px"; }
+        if (hd !== "e" && ratio) { o.h = +Math.max(2, Math.min(100, oh + dy)).toFixed(2); t.style.height = o.h * 10.8 + "px"; }
+        live(b);
+      }, () => { save(); setTimeout(draw, 250); });
     }
-    lay.addEventListener("pointerdown", e => { if (e.target === lay) { S.sel = null; draw(); renderPanel(); } });
+    // Crop mode: drag pans the picture inside its frame.
+    function startPan(e, b) {
+      e.preventDefault(); const o = b.o, img = $(`.box[data-id="${b.id}"] img`, lay), sx = e.clientX, sy = e.clientY, ox = o.ox || 0, oy = o.oy || 0;
+      const fw = o.w * 19.2, fh = o.h * 10.8;
+      track(ev => { o.ox = +(ox + (ev.clientX - sx) / scale / fw * 100).toFixed(2); o.oy = +(oy + (ev.clientY - sy) / scale / fh * 100).toFixed(2); img.style.left = o.ox + "%"; img.style.top = o.oy + "%"; }, () => save());
+    }
+    // In-place text editing (double-click a text box).
+    function editText(b) {
+      if (editing) return;
+      const o = b.o, t = $(`.box[data-id="${b.id}"]`, lay); if (!t) return;
+      const colors = { white: "#fff", orange: "#F48120", green: "#77BF44", teal: "#09E7E8", dim: "#cfcfcf", black: "#000" };
+      const ta = document.createElement("textarea"); ta.className = "inline-edit"; ta.value = o.text;
+      Object.assign(ta.style, { left: o.x * 19.2 + "px", top: o.y * 10.8 + "px", width: o.w * 19.2 + "px", minHeight: Math.max(t.getBoundingClientRect().height / scale, (o.h || 0) * 10.8) + "px",
+        fontSize: FS * 1.1 * (o.k || 1) + "px", lineHeight: String(o.lh || 1.25), textAlign: o.align || "center", color: colors[o.color || "white"], fontWeight: o.bold === false ? 600 : 800, whiteSpace: o.wrap === false ? "pre" : "pre-wrap" });
+      editing = b.id; lay.appendChild(ta); ta.focus(); ta.select();
+      const finish = (commit) => { if (!editing) return; editing = null; const v = ta.value.trim(); ta.remove(); if (commit && v !== o.text) { o.text = v; save(); } draw(); renderPanel(); };
+      ta.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); finish(false); } if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); finish(true); } e.stopPropagation(); });
+      ta.addEventListener("blur", () => finish(true));
+      ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; });
+    }
+    // Layer order (works across sections, photos and text).
+    function reorder(b, how) {
+      const all = boxes(); const cur = zOf(b), zs = all.map(zOf);
+      if (how === "front") b.o.z = Math.max(...zs) + 1;
+      else if (how === "back") b.o.z = Math.min(...zs) - 1;
+      else if (how === "up") { const above = all.filter(x => zOf(x) > cur).sort((p, q) => zOf(p) - zOf(q))[0]; if (!above) return; const zb = zOf(above); above.o.z = cur; b.o.z = zb; if (above.o.z === b.o.z) b.o.z = zb + 1; }
+      else if (how === "down") { const below = all.filter(x => zOf(x) < cur).sort((p, q) => zOf(q) - zOf(p))[0]; if (!below) return; const zb = zOf(below); below.o.z = cur; b.o.z = zb; if (below.o.z === b.o.z) b.o.z = zb - 1; }
+      save();
+    }
+    lay.addEventListener("pointerdown", e => { if (e.target === lay) { if (editing) return; S.sel = null; cropMode = false; draw(); renderPanel(); } });
     const selected = () => (sc ? boxes().find(b => b.id === S.sel) : null) || null;
-    return { fit, unmount, sync, draw, save, arrange, selected, get sc() { return sc; } };
+    // Keyboard: arrows nudge (Shift = bigger steps), Delete removes photos/text, Escape deselects.
+    document.addEventListener("keydown", e => {
+      if (!isDesktop() || editing || $("#sheet") || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+      const b = selected(); if (!b) return;
+      const step = e.shiftKey ? 1 : .2;
+      if (e.key === "ArrowLeft") { b.o.x = +(b.o.x - step).toFixed(2); } else if (e.key === "ArrowRight") { b.o.x = +(b.o.x + step).toFixed(2); }
+      else if (e.key === "ArrowUp") { b.o.y = +(b.o.y - step).toFixed(2); } else if (e.key === "ArrowDown") { b.o.y = +(b.o.y + step).toFixed(2); }
+      else if ((e.key === "Delete" || e.key === "Backspace") && (b.kind === "image" || b.kind === "text")) { if (b.kind === "image") sc.images = sc.images.filter(x => x !== b.o); else sc.texts = sc.texts.filter(x => x !== b.o); S.sel = null; save(); renderPanel(); return; }
+      else if (e.key === "Escape") { S.sel = null; cropMode = false; draw(); renderPanel(); return; }
+      else return;
+      e.preventDefault(); live(b); draw(); clearTimeout(canvas._nudge); canvas._nudge = setTimeout(save, 350);
+    });
+    return { fit, unmount, sync, draw, save, arrange, selected, reorder, editText, get sc() { return sc; }, get cropMode() { return cropMode; }, set cropMode(v) { cropMode = v; draw(); } };
   })();
 
   // Desktop toolbar
   $("#dFile").addEventListener("change", async e => {
     const f = e.target.files[0]; if (!f || !screen()) return; toast("Uploading photo…", false, 8000);
-    try { const url = await uploadToImgbb(f); const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "" }; canvas.sc.images.push(im); S.sel = im.id; await canvas.save(); toast("Photo added — drag it where you want it"); }
+    try { const url = await uploadToImgbb(f); const im = { id: uid(), url, x: 42, y: 35, w: 16, label: "", opacity: 1 }; canvas.sc.images.push(im); S.sel = im.id; await canvas.save(); toast("Photo added — drag it where you want it"); }
     catch (err) { toast("Upload failed: " + err.message, true, 5000); }
     e.target.value = "";
   });
-  $("#dText").onclick = () => { if (!screen()) return toast("Add a TV first", true); const t = { id: uid(), text: "New text — edit me on the right", x: 25, y: 45, w: 50, k: 1.2, align: "center", color: "orange" }; canvas.sc.texts.push(t); S.sel = "text:" + t.id; canvas.save(); };
+  $("#dText").onclick = () => { if (!screen()) return toast("Add a TV first", true); const t = { id: uid(), text: "New text", x: 25, y: 45, w: 50, k: 1.2, align: "center", color: "orange", lh: 1.25, wrap: true }; canvas.sc.texts.push(t); S.sel = "text:" + t.id; canvas.save(); setTimeout(() => { const b = canvas.selected(); if (b) canvas.editText(b); }, 450); };
   $("#dSection").onclick = () => { if (!screen()) return toast("Add a TV first", true); openCategory(null); };
   $("#dArrange").onclick = () => { if (!confirm("Put all sections back into a tidy two-column layout? (Photos and text boxes stay where they are.)")) return; canvas.arrange(false); };
 
   // Side panel — edits whatever is selected on the TV.
+  let panelKey = null, panelDirty = false;
   function renderPanel() {
     const p = $("#panel"); const sc = screen();
+    // Don't rebuild the panel under someone's cursor: while a field inside it is focused
+    // (typing, stepping a number), wait for blur. Otherwise a live update from the save
+    // would throw the field away mid-edit and re-fire stale change events.
+    const key = [S.locId, S.si, S.sel, canvas.cropMode, !!sc].join("|"), ae = document.activeElement;
+    if (key === panelKey && ae && ae !== p && p.contains(ae) && ["INPUT", "TEXTAREA", "SELECT"].includes(ae.tagName)) {
+      if (!panelDirty) { panelDirty = true; ae.addEventListener("blur", () => { if (panelDirty) setTimeout(renderPanel, 0); }, { once: true }); }
+      return;
+    }
+    panelKey = key; panelDirty = false;
     if (!sc) { p.innerHTML = `<div class="empty">This store has no TV yet.<br><br><button class="btn primary" id="firstTV">Set up TV 1</button></div>`; $("#firstTV").onclick = addScreen; return; }
     const b = canvas.selected();
     const segAlign = o => `<span class="seg">${["left", "center", "right"].map(a => `<button data-al="${a}" class="${(o.align || "center") === a ? "on" : ""}" title="Align ${a}">${a === "left" ? "⇤" : a === "center" ? "☰" : "⇥"}</button>`).join("")}</span>`;
-    const segSize = () => `<span class="seg"><button data-k="-1" title="Smaller text">A−</button><button data-k="1" title="Bigger text">A+</button></span>`;
+    const sizeRow = (o, label = "Text size") => `<label class="field"><span>${label}</span><span class="numrow"><span class="seg"><button data-k="-1" title="Smaller">A−</button><button data-k="1" title="Bigger">A+</button></span><input type="number" class="num" id="pK" min="40" max="300" step="5" value="${Math.round((o.k || 1) * 100)}"> %</span></label>`;
+    const layerRow = () => `<div class="field"><span>Layer</span><div class="rowbtns"><button class="btn small" data-z="front">To front</button><button class="btn small" data-z="up">Forward</button><button class="btn small" data-z="down">Backward</button><button class="btn small" data-z="back">To back</button></div></div>`;
+    const opacityRow = o => `<label class="field"><span>Opacity <b id="opV">${Math.round((o.opacity ?? 1) * 100)}%</b></span><input type="range" id="pOp" min="10" max="100" value="${Math.round((o.opacity ?? 1) * 100)}"></label>`;
+    const boxRow = (o, withH) => `<div class="field"><span>Box size (% of TV)</span><span class="numrow">W <input type="number" class="num" id="pW" min="3" max="100" step="1" value="${Math.round(o.w)}">${withH ? ` &nbsp; H <input type="number" class="num" id="pH" min="0" max="100" step="1" value="${o.h ? Math.round(o.h) : ""}" placeholder="auto">` : ""}</span></div>`;
     if (!b) {
       const cats = sc.categories || [];
       p.innerHTML = `<h3>${esc(S.loc.name || S.locId)} <small>TV ${S.si + 1}</small></h3>
-        <p class="hint"><b>Click</b> a section, photo or text on the TV to edit it. <b>Drag</b> to move it. Pull the <b>orange corner</b> to resize.</p>
+        <p class="hint"><b>Click</b> a section, photo or text on the TV to edit it. <b>Drag</b> to move · pull the <b>orange handles</b> to resize · <b>arrow keys</b> nudge · <b>double-click</b> text to type.</p>
         <div class="secs"><h3>Sections</h3><div class="list">${cats.map(c => `<div class="it" data-pick="cat:${esc(c.id)}"><span class="n">${esc(c.name)}<small>${(c.items || []).length} items</small></span><span>›</span></div>`).join("") || `<div class="it"><span class="n info">No sections yet — click ＋ Section above.</span></div>`}</div></div>
         <div class="secs"><h3>Logo on this TV</h3><label class="field"><select id="pBrand" class="sel">${brandOptions(sc.brand || "", true)}</select><small class="info">Store default: ${esc(BRANDS[S.loc.brand || "deli"])} (change it under ⚙)</small></label></div>
         <div class="secs"><h3>Note at the bottom</h3><label class="field"><input id="pNote" value="${esc(sc.note || "")}" placeholder="e.g. All meals come with a 20 oz drink"></label></div>
@@ -511,15 +609,20 @@
       $("#pBrand").onchange = e => mutate(loc => { loc.screens[S.si].brand = e.target.value; }, "Logo changed");
       return;
     }
-    const o = b.o;
+    // `o` always points at the *current* copy of the selected object: the canvas re-copies its
+    // screen after every live update, so a plain reference would go stale between two edits.
+    const liveO = () => { const cur = canvas.selected(); return cur && cur.id === b.id ? cur.o : b.o; };
+    const o = new Proxy(b.o, { get: (_, k) => liveO()[k], set: (_, k, v) => { liveO()[k] = v; return true; }, deleteProperty: (_, k) => { delete liveO()[k]; return true; }, has: (_, k) => k in liveO(), ownKeys: () => Reflect.ownKeys(liveO()), getOwnPropertyDescriptor: (_, k) => Object.getOwnPropertyDescriptor(liveO(), k) });
     if (b.kind === "cat") {
       const cat = (sc.categories || []).find(c => c.id === b.cat.id);
       p.innerHTML = `<h3>Section</h3>
         <label class="field"><span>Heading</span><input id="pName" value="${esc(cat.name)}"></label>
         <label class="field"><span>Small note under the heading</span><input id="pCatNote" value="${esc(cat.note || "")}" placeholder="optional"></label>
-        <div class="rowbtns">${segAlign(o)} ${segSize()} <span class="seg"><button data-cols="1" class="${o.cols !== 2 ? "on" : ""}">1 col</button><button data-cols="2" class="${o.cols === 2 ? "on" : ""}">2 cols</button></span></div>
+        ${sizeRow(o)}
+        <div class="rowbtns">${segAlign(o)} <span class="seg"><button data-cols="1" class="${o.cols !== 2 ? "on" : ""}">1 col</button><button data-cols="2" class="${o.cols === 2 ? "on" : ""}">2 cols</button></span></div>
+        ${boxRow(o, false)}${layerRow()}
         <h3>Items <small>click to edit · drag ⋮ to reorder</small></h3>
-        <div class="list" id="pItems">${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="it ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}"><span class="h">⋮</span><span class="n">${esc(it.name)}${it.override ? `<span class="ovr">this store</span>` : ""}${it.description ? `<small>${esc(it.description)}</small>` : ""}</span><span class="p">${esc(it.price) || "<span class=info>price?</span>"}</span></div>`; }).join("")}</div>
+        <div class="list" id="pItems">${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="it ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}"><span class="h">⋮</span><span class="n">${esc(it.name)}${it.override ? `<span class="ovr">this store</span>` : ""}${it.description ? `<small>${esc(it.description)}</small>` : ""}</span><span class="p">${it.soldOut ? `<span class="sold">Sold Out!</span>` : esc(it.price) || "<span class=info>price?</span>"}</span></div>`; }).join("")}</div>
         <div class="rowbtns"><button class="btn small primary" id="pAddItem">＋ Add item</button><button class="btn small danger" id="pDelCat">Delete section</button></div>`;
       $("#pName").onchange = e => { const v = e.target.value.trim(); if (v) mutate(loc => { findCat(loc, cat.id).name = v; }); };
       $("#pCatNote").onchange = e => mutate(loc => { findCat(loc, cat.id).note = e.target.value.trim(); });
@@ -529,27 +632,60 @@
       $$("[data-cols]", p).forEach(x => x.onclick = () => { o.cols = +x.dataset.cols; canvas.save(); });
       if (window.Sortable) S.sortables.push(new Sortable($("#pItems"), { handle: ".h", animation: 150, onEnd: () => { const order = $$("#pItems .it").map(x => x.dataset.item); mutate(loc => { const c = findCat(loc, cat.id); c.items.sort((a, b2) => order.indexOf(a.id) - order.indexOf(b2.id)); }); } }));
     } else if (b.kind === "image") {
-      p.innerHTML = `<h3>Photo</h3><img src="${esc(o.url)}" style="width:100%;border-radius:10px;margin-bottom:10px" alt="">
+      const cropping = canvas.cropMode;
+      p.innerHTML = `<h3>Photo</h3><img src="${esc(o.url)}" style="width:100%;border-radius:10px;margin-bottom:10px;opacity:${o.opacity ?? 1}" alt="">
+        <div class="field"><span>Crop</span>
+          ${cropping ? `<p class="hint">Drag the photo on the TV to move it inside its frame. Pull the frame's orange handles to change the frame.</p>
+            <label class="field"><span>Zoom <b id="zmV">${Math.round((o.zoom || 1) * 100)}%</b></span><input type="range" id="pZoom" min="100" max="400" value="${Math.round((o.zoom || 1) * 100)}"></label>
+            <div class="rowbtns"><button class="btn small primary" id="pCropDone">Done cropping</button><button class="btn small" id="pCropReset">Remove crop</button></div>`
+          : `<div class="rowbtns"><button class="btn small" id="pCrop">${o.h ? "Adjust crop" : "Crop photo"}</button>${o.h ? `<button class="btn small" id="pCropReset">Remove crop</button>` : ""}</div>`}
+        </div>
+        ${boxRow(o, !!o.h)}${opacityRow(o)}
         <label class="field"><span>Price bubble (optional)</span><input id="pLabel" value="${esc(o.label || "")}" placeholder="$2.49"></label>
-        <div class="rowbtns"><button class="btn small" id="pFront">Bring to front</button><button class="btn small danger" id="pDel">Remove photo</button></div>`;
+        ${layerRow()}
+        <div class="rowbtns"><button class="btn small danger" id="pDel">Remove photo</button></div>`;
       $("#pLabel").onchange = e => { o.label = e.target.value.trim(); canvas.save(); };
-      $("#pFront").onclick = () => { canvas.sc.images = canvas.sc.images.filter(x => x !== o).concat([o]); canvas.save(); };
-      $("#pDel").onclick = () => { if (!confirm("Remove this photo?")) return; canvas.sc.images = canvas.sc.images.filter(x => x !== o); S.sel = null; canvas.save(); };
+      $("#pDel").onclick = () => { if (!confirm("Remove this photo?")) return; canvas.sc.images = canvas.sc.images.filter(x => x.id !== o.id); S.sel = null; canvas.save(); };
+      $("#pCrop") && ($("#pCrop").onclick = () => {
+        if (!o.h) { const img = $(`.box[data-id="${o.id}"] img`, $("#lay")); const r = img?.naturalWidth ? img.naturalHeight / img.naturalWidth : .6; o.h = +(o.w * 19.2 * r / 10.8).toFixed(2); o.zoom = 1; o.ox = 0; o.oy = 0; }
+        canvas.cropMode = true; renderPanel();
+      });
+      $("#pCropDone") && ($("#pCropDone").onclick = () => { canvas.cropMode = false; canvas.save(); renderPanel(); });
+      $("#pCropReset") && ($("#pCropReset").onclick = () => { delete o.h; delete o.zoom; delete o.ox; delete o.oy; canvas.cropMode = false; canvas.save(); renderPanel(); });
+      $("#pZoom") && ($("#pZoom").oninput = e => { o.zoom = +(e.target.value / 100).toFixed(2); $("#zmV").textContent = e.target.value + "%"; const img = $(`.box[data-id="${o.id}"] img`, $("#lay")); if (img) img.style.width = o.zoom * 100 + "%"; });
+      $("#pZoom") && ($("#pZoom").onchange = () => canvas.save());
     } else if (b.kind === "text") {
-      p.innerHTML = `<h3>Text</h3><label class="field"><span>Text</span><textarea id="pText" rows="3">${esc(o.text)}</textarea></label>
-        <div class="rowbtns">${segAlign(o)} ${segSize()} <span class="seg"><button data-col="white" class="${(o.color || "white") === "white" ? "on" : ""}">White</button><button data-col="orange" class="${o.color === "orange" ? "on" : ""}">Orange</button><button data-col="green" class="${o.color === "green" ? "on" : ""}">Green</button><button data-col="teal" class="${o.color === "teal" ? "on" : ""}">Teal</button></span></div>
+      p.innerHTML = `<h3>Text <small>double-click it on the TV to type</small></h3>
+        <label class="field"><span>Text</span><textarea id="pText" rows="4">${esc(o.text)}</textarea></label>
+        ${sizeRow(o)}
+        <div class="field"><span>Line spacing <b id="lhV">${(o.lh || 1.25).toFixed(2)}</b></span><input type="range" id="pLh" min="90" max="220" value="${Math.round((o.lh || 1.25) * 100)}"></div>
+        <div class="rowbtns">${segAlign(o)} <span class="seg"><button data-wrap="1" class="${o.wrap !== false ? "on" : ""}">Wrap</button><button data-wrap="0" class="${o.wrap === false ? "on" : ""}">One line</button></span> <span class="seg"><button data-bold="1" class="${o.bold !== false ? "on" : ""}">Bold</button><button data-bold="0" class="${o.bold === false ? "on" : ""}">Normal</button></span></div>
+        <div class="rowbtns"><span class="seg">${["white", "orange", "green", "teal", "dim", "black"].map(c => `<button data-col="${c}" class="${(o.color || "white") === c ? "on" : ""}">${c === "dim" ? "Grey" : c[0].toUpperCase() + c.slice(1)}</button>`).join("")}</span></div>
+        ${boxRow(o, true)}${opacityRow(o)}${layerRow()}
         <div class="rowbtns"><button class="btn small danger" id="pDel">Remove text</button></div>`;
-      $("#pText").onchange = e => { o.text = e.target.value.trim(); canvas.save(); };
+      let tm; $("#pText").oninput = e => { o.text = e.target.value; clearTimeout(tm); tm = setTimeout(() => canvas.save(), 400); };
       $$("[data-col]", p).forEach(x => x.onclick = () => { o.color = x.dataset.col; canvas.save(); });
-      $("#pDel").onclick = () => { if (!confirm("Remove this text?")) return; canvas.sc.texts = canvas.sc.texts.filter(x => x !== o); S.sel = null; canvas.save(); };
+      $$("[data-wrap]", p).forEach(x => x.onclick = () => { o.wrap = x.dataset.wrap === "1"; canvas.save(); });
+      $$("[data-bold]", p).forEach(x => x.onclick = () => { o.bold = x.dataset.bold === "1"; canvas.save(); });
+      $("#pLh").oninput = e => { o.lh = +(e.target.value / 100).toFixed(2); $("#lhV").textContent = o.lh.toFixed(2); }; $("#pLh").onchange = () => canvas.save();
+      $("#pDel").onclick = () => { if (!confirm("Remove this text?")) return; canvas.sc.texts = canvas.sc.texts.filter(x => x.id !== o.id); S.sel = null; canvas.save(); };
     } else if (b.kind === "note") {
-      p.innerHTML = `<h3>Note at the bottom</h3><label class="field"><span>Text (empty removes it)</span><input id="pNote2" value="${esc(sc.note || "")}"></label><div class="rowbtns">${segAlign(o)} ${segSize()}</div>`;
+      p.innerHTML = `<h3>Note at the bottom</h3><label class="field"><span>Text (empty removes it)</span><input id="pNote2" value="${esc(sc.note || "")}"></label>
+        ${sizeRow(o)}<div class="rowbtns">${segAlign(o)} <span class="seg"><button data-bold="1" class="${o.bold ? "on" : ""}">Bold</button><button data-bold="0" class="${!o.bold ? "on" : ""}">Normal</button></span></div>${boxRow(o, true)}${opacityRow(o)}${layerRow()}`;
       $("#pNote2").onchange = e => { const v = e.target.value.trim(); if (!v) S.sel = null; mutate(loc => { loc.screens[S.si].note = v; }); };
+      $$("[data-bold]", p).forEach(x => x.onclick = () => { o.bold = x.dataset.bold === "1"; canvas.save(); });
     }
+    // shared controls
     $$("[data-al]", p).forEach(x => x.onclick = () => { o.align = x.dataset.al; canvas.save(); });
-    $$("[data-k]", p).forEach(x => x.onclick = () => { o.k = +Math.max(.5, Math.min(2.5, (o.k || 1) + .1 * +x.dataset.k)).toFixed(2); canvas.save(); });
+    $$("[data-k]", p).forEach(x => x.onclick = () => { o.k = +Math.max(.4, Math.min(3, (o.k || 1) + .1 * +x.dataset.k)).toFixed(2); canvas.save(); });
+    $("#pK") && ($("#pK").onchange = e => { const v = +Math.max(.4, Math.min(3, (+e.target.value || 100) / 100)).toFixed(2); if (v === (o.k || 1)) return; o.k = v; canvas.save(); });
+    $$("[data-z]", p).forEach(x => x.onclick = () => { const cur = canvas.selected(); if (cur) canvas.reorder(cur, x.dataset.z); });
+    $("#pOp") && ($("#pOp").oninput = e => { o.opacity = +(e.target.value / 100).toFixed(2); $("#opV").textContent = e.target.value + "%"; const el = $(`.box[data-id="${b.id}"]`, $("#lay")); if (el) el.style.opacity = o.opacity; });
+    $("#pOp") && ($("#pOp").onchange = () => canvas.save());
+    $("#pW") && ($("#pW").onchange = e => { const v = +Math.max(3, Math.min(100, +e.target.value || o.w)).toFixed(2); if (v === o.w) return; o.w = v; canvas.save(); });
+    $("#pH") && ($("#pH").onchange = e => { const v = +e.target.value; if (!v) { if (b.kind === "image" || !o.h) return; delete o.h; } else { const h = +Math.max(2, Math.min(100, v)).toFixed(2); if (h === o.h) return; o.h = h; } canvas.save(); });
     p.insertAdjacentHTML("beforeend", `<p class="hint" style="margin-top:14px"><button class="btn small" id="pBack">‹ Back to TV overview</button></p>`);
-    $("#pBack").onclick = () => { S.sel = null; canvas.draw(); renderPanel(); };
+    $("#pBack").onclick = () => { S.sel = null; canvas.cropMode = false; canvas.draw(); renderPanel(); };
   }
 
   // =========================================================== PHONE LIST ==
@@ -560,7 +696,7 @@
     const cats = sc.categories || [];
     host.innerHTML = `${cats.map(cat => `<div class="m-sec" data-cid="${esc(cat.id)}">
         <div class="mh"><span class="mh-handle" style="color:var(--dim);cursor:grab;touch-action:none">☰</span><span class="t" data-cat="${esc(cat.id)}">${esc(cat.name)}${cat.note ? `<small>${esc(cat.note)}</small>` : ""}</span><button class="btn small" data-cat="${esc(cat.id)}">✎</button></div>
-        <div class="mitems" data-cid="${esc(cat.id)}">${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="mi ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}"><span class="h">⋮⋮</span><span class="n">${esc(it.name)}${it.override ? ` <span style="color:var(--orange);font-size:11px;font-weight:700">this store</span>` : ""}${it.description ? `<small>${esc(it.description)}</small>` : ""}</span><span class="p">${esc(it.price) || "<span class=info>price?</span>"}</span></div>`; }).join("")}</div>
+        <div class="mitems" data-cid="${esc(cat.id)}">${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="mi ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}"><span class="h">⋮⋮</span><span class="n">${esc(it.name)}${it.override ? ` <span style="color:var(--orange);font-size:11px;font-weight:700">this store</span>` : ""}${it.description ? `<small>${esc(it.description)}</small>` : ""}</span><span class="p">${it.soldOut ? `<span class="sold">Sold Out!</span>` : esc(it.price) || "<span class=info>price?</span>"}</span></div>`; }).join("")}</div>
         <div class="add" data-additem="${esc(cat.id)}">＋ Add item to ${esc(cat.name)}</div>
       </div>`).join("")}
       ${cats.length ? "" : `<div class="empty">Nothing on this TV yet. Tap <b>＋ Section</b> to add a heading like “Breakfast”.</div>`}
@@ -645,15 +781,18 @@
       <label class="field"><span>Name</span><input id="iName" value="${esc(it.name)}"></label>
       <label class="field"><span>Price</span><input id="iPrice" value="${esc(it.price)}" placeholder="$0.00"></label>
       ${others.length ? `<div class="scope">
-        <label class="on"><input type="radio" name="scope" value="all" checked><div><b>Change price at all my stores</b><small>${esc(listedAt.join(", "))}</small></div></label>
-        <label><input type="radio" name="scope" value="one"><div><b>Only at ${esc(S.loc.name || S.locId)}</b><small>Other stores keep ${esc(it.basePrice || "their price")}.</small></div></label></div>` : ""}
+        <label class="on"><input type="radio" name="scope" value="one" checked><div><b>Change price at ${esc(S.loc.name || S.locId)} only</b><small>Other stores keep ${esc(it.basePrice || "their price")}.</small></div></label>
+        <label><input type="radio" name="scope" value="all"><div><b>Change price at all my stores</b><small>${esc(listedAt.join(", "))}</small></div></label></div>` : ""}
       <label class="field"><span>Small text under the name (optional)</span><input id="iDesc" value="${esc(it.description)}" placeholder="e.g. Pollo y queso"></label>
       <div class="switch"><span>Hide from the TV (keep on the list)</span><input type="checkbox" id="iHidden" ${it.hidden ? "checked" : ""}></div>
-      <div class="rowbtns"><button class="btn" id="iUp">↑ Move up</button><button class="btn" id="iDown">↓ Move down</button></div>`}
+      <div class="rowbtns"><button class="btn ${it.soldOut ? "" : "danger"}" id="iSold" style="flex:1">${it.soldOut ? "✓ Back in stock" : "Mark sold out"}</button></div>
+      <div class="rowbtns"><button class="btn" id="iUp">↑ Move up</button><button class="btn" id="iDown">↓ Move down</button></div>
+      ${it.soldOut ? `<p class="info" style="color:#e5484d;font-weight:700">Showing “Sold Out!” instead of the price on this TV.</p>` : ""}`}
       <div class="btns"><button class="btn primary grow2" id="iSave" ${it.missing ? "disabled" : ""}>Save</button><button class="btn danger" id="iRemove">Remove</button></div>`);
     $$("input[name=scope]", el).forEach(r => r.onchange = () => $$(".scope label", el).forEach(l => l.classList.toggle("on", $("input", l).checked)));
     const move = d => mutate(loc => { const c = catOf(loc, entryId); const i = c.items.findIndex(e => e.id === entryId), j = i + d; if (j < 0 || j >= c.items.length) return false; [c.items[i], c.items[j]] = [c.items[j], c.items[i]]; });
     $("#iUp", el) && ($("#iUp", el).onclick = () => { move(-1); closeSheet(); }); $("#iDown", el) && ($("#iDown", el).onclick = () => { move(1); closeSheet(); });
+    $("#iSold", el) && ($("#iSold", el).onclick = () => { const on = !it.soldOut; mutate(loc => { const e = findEntry(loc, entryId); if (on) e.soldOut = true; else delete e.soldOut; }, on ? `${it.name} marked sold out` : `${it.name} is back in stock`); closeSheet(); });
     $("#iRemove", el).onclick = () => { if (!confirm(`Remove "${it.name}" from this TV?`)) return; mutate(loc => { loc.screens[S.si].categories.forEach(c => { c.items = (c.items || []).filter(e => e.id !== entryId); }); }, "Removed"); closeSheet(); };
     $("#iSave", el).onclick = async () => {
       const name = $("#iName", el).value.trim(), price = $("#iPrice", el).value.trim(), desc = $("#iDesc", el).value.trim(), hidden = $("#iHidden", el).checked; if (!name) return;
