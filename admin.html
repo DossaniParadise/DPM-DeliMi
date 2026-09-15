@@ -187,6 +187,20 @@
 
   .toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); background: #0d4243; color: #fff; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--green); z-index: 60; max-width: 92vw; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
   .toast.bad { border-color: var(--red); }
+  .cstore { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 12px; background: var(--orange); color: #111; font-weight: 800; font-family: var(--font-head); font-size: 16px; padding: 12px 14px 12px 18px; border-radius: 14px; box-shadow: 0 10px 34px rgba(0,0,0,.55); width: max-content; max-width: calc(100vw - 24px); animation: cstoreIn .25s ease-out; transition: opacity .6s; }
+  .cstore.fade { opacity: 0; }
+  .cstore button { background: rgba(0,0,0,.18); border: 0; color: #111; width: 30px; height: 30px; border-radius: 50%; font-size: 18px; font-weight: 800; cursor: pointer; flex: 0 0 auto; }
+  @keyframes cstoreIn { from { transform: translate(-50%, -20px); opacity: 0; } }
+  .ow-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .ow-row .em { font-weight: 700; word-break: break-all; }
+  .ow-row .em small { display: block; color: var(--dim); font-weight: 400; }
+  .ow-row .ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; grid-column: 1 / -1; }
+  .ow-row .ctl label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .ow-row select { padding: 6px 8px; border-radius: 8px; background: var(--card2); color: #fff; border: 1px solid var(--line); }
+  .badge { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: var(--card2); color: var(--teal); border: 1px solid var(--line); }
+  .badge.store { color: var(--orange); } .badge.super { color: var(--green); }
+  body.limited .m-sec .mh-handle, body.limited .m-sec .mi .h, body.limited .m-sec .add, body.limited .m-sec .mh button { display: none; }
+  .limited-note { text-align: center; color: var(--dim); font-size: 13px; padding: 8px 12px 14px; }
 </style>
 </head>
 <body>
@@ -196,6 +210,7 @@
       <select id="storeSel" class="hidden"></select>
       <span class="spacer"></span>
       <a class="btn small hidden" id="openTV" href="#" target="_blank" title="Open this TV's page">TV link ↗</a>
+      <button class="btn small hidden" id="overwatchBtn" title="Logins & permissions">Overwatch</button>
       <button class="btn small hidden" id="settingsBtn" title="Store & TV settings">⚙</button>
       <button class="btn small hidden" id="logoutBtn">Log out</button>
     </div>
@@ -243,7 +258,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, onSnapshot, writeBatch, serverTimestamp }
+  import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, onSnapshot, writeBatch, serverTimestamp, query, where }
     from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
   // ------------------------------------------------------------- config --
@@ -299,6 +314,26 @@
     }
     return { ids: [...ids].sort(storeSort), personNames };
   }
+  // Store (GM) logins: the store's own mailbox, matched against any email-looking field on the
+  // FindMi restaurant record (storeEmail / email / gmEmail / … — whatever FindMi carries).
+  function emailsOnRecord(r, depth = 0) {
+    const out = [];
+    if (!r || typeof r !== "object" || depth > 2) return out;
+    for (const v of Object.values(r)) {
+      if (typeof v === "string" && v.includes("@")) out.push(v.trim().toLowerCase());
+      else if (v && typeof v === "object") out.push(...emailsOnRecord(v, depth + 1));
+    }
+    return out;
+  }
+  function storeIdForEmail(al, email) {
+    const em = String(email || "").trim().toLowerCase(); if (!em) return null;
+    for (const r of Object.values(al?.restaurants || {})) { const locId = locationIdFromRestaurant(r); if (locId && emailsOnRecord(r).includes(em)) return locId; }
+    return null;
+  }
+  // What the signed-in person may do. DMs (FindMi directors / area coaches) and super admins have
+  // everything. Store logins can only mark items sold out, unless Overwatch grants "full controls".
+  const ROLE_NAMES = { super: "Super admin", manager: "District manager", store: "Store login" };
+  const perm = () => { const a = S.admin || {}; const store = a.role === "store"; return { role: a.role, store, full: !store || a.full === true, allStores: !store, overwatch: a.role === "super" }; };
   async function uploadToImgbb(file) {
     const blob = await shrink(file, 1400, .85); const fd = new FormData(); fd.append("image", blob, "photo.jpg");
     const res = await fetch("https://api.imgbb.com/1/upload?key=" + encodeURIComponent(IMGBB_API_KEY), { method: "POST", body: fd });
@@ -318,6 +353,7 @@
     for (const k in views) views[k].classList.toggle("hidden", k !== name);
     const editing = name === "desk" || name === "phone";
     for (const id of ["#storeSel", "#screenChips", "#settingsBtn", "#openTV"]) $(id).classList.toggle("hidden", !editing);
+    if (editing && !perm().full) $("#settingsBtn").classList.add("hidden");
     $("#actions").classList.toggle("hidden", name !== "phone");
   }
   function message(title, body, retry) { $("#msgTitle").textContent = title; $("#msgBody").textContent = body; $("#msgRetry").classList.toggle("hidden", !retry); $("#msgRetry").onclick = retry || null; show("msg"); }
@@ -342,10 +378,28 @@
   async function bootstrap() {
     message("Loading…", "Checking your access.");
     let a; try { a = await getDoc(doc(db, "admins", S.user.uid)); } catch (e) { return message("Can't read admin record", e.message, bootstrap); }
-    if (!a.exists()) return message("Not set up as an editor", `${S.user.email} signed in, but there is no admins/${S.user.uid} record. Ask IT to add it.`);
+    if (!a.exists()) {
+      // First sign-in: work out who this is from FindMi. A director / area coach becomes a
+      // district manager; a store's own mailbox becomes that store's login (sold-out only).
+      let al; try { al = await fetchAlignment(); } catch (e) { return message("Couldn't reach FindMi", "Needed to work out your access (" + e.message + ").", bootstrap); }
+      const { personNames } = allowedLocationsFor(al, S.user.email, null);
+      const rec = { email: S.user.email, createdAt: serverTimestamp() };
+      if (personNames.length) rec.role = "manager";
+      else { const locId = storeIdForEmail(al, S.user.email); if (locId) { rec.role = "store"; rec.locId = locId; rec.full = false; } }
+      if (!rec.role) return message("Not set up as an editor", `${S.user.email} signed in, but FindMi has no district manager or store with that email. Ask IT to map it in Overwatch.`);
+      try { await setDoc(doc(db, "admins", S.user.uid), rec); } catch (e) { return message("Couldn't register this login", e.message + " — check the Firestore rules are the latest version.", bootstrap); }
+      a = await getDoc(doc(db, "admins", S.user.uid));
+    }
     S.admin = a.data();
     const ls = await getDocs(collection(db, "locations")); S.all = {}; ls.forEach(d => { S.all[d.id] = d.data(); });
+    $("#overwatchBtn").classList.toggle("hidden", S.admin.role !== "super");
     if (S.admin.role === "super") S.allowed = Object.keys(S.all).sort(storeSort);
+    else if (S.admin.role === "store") {
+      let locId = S.admin.locId;
+      if (!locId || !S.all[locId]) { try { locId = storeIdForEmail(await fetchAlignment(), S.user.email) || locId; } catch (e) {} }
+      if (!locId || !S.all[locId]) return message("No store for this login", `${S.user.email} is a store login but isn't tied to a store yet. Ask IT to pick the store in Overwatch.`, bootstrap);
+      S.allowed = [locId];
+    }
     else {
       let al; try { al = await fetchAlignment(); } catch (e) { return message("Couldn't load your stores", "FindMi did not respond (" + e.message + ").", bootstrap); }
       const { ids, personNames } = allowedLocationsFor(al, S.user.email, S.admin.matchName);
@@ -394,8 +448,21 @@
     $$("#screenChips .chip").forEach(b => b.onclick = () => { if (b.dataset.add) return addScreen(); S.si = +b.dataset.i; S.sel = null; render(); });
     $("#openTV").href = `index.html?id=${encodeURIComponent(S.locId)}&screen=${S.si + 1}`;
     S.sortables.forEach(s => s.destroy()); S.sortables = [];
-    if (isDesktop()) { show("desk"); canvas.sync(); renderPanel(); }
+    const P = perm(); document.body.classList.toggle("limited", !P.full);
+    $("#settingsBtn").classList.toggle("hidden", !P.full); $("#mSection").classList.toggle("hidden", !P.full);
+    if (isDesktop() && P.full) { show("desk"); canvas.sync(); renderPanel(); }
     else { show("phone"); canvas.unmount(); renderPhone(); }
+  }
+  // Every menu-content change (prices, items, sold out, sections) reminds the editor to mirror it
+  // in Cstore Pro. Layout moves, photos and text boxes don't.
+  function remindCstore() {
+    $(".cstore")?.remove();
+    const el = document.createElement("div"); el.className = "cstore"; el.setAttribute("role", "alert");
+    el.innerHTML = `<span>Be sure to update Cstore Pro to match!</span><button title="Close" aria-label="Close">×</button>`;
+    document.body.appendChild(el);
+    const go = () => { el.classList.add("fade"); setTimeout(() => el.remove(), 650); };
+    $("button", el).onclick = () => el.remove();
+    setTimeout(() => { if (el.isConnected) go(); }, 5000);
   }
   let lastMode = isDesktop();
   window.addEventListener("resize", () => { const d = isDesktop(); if (d !== lastMode) { lastMode = d; render(); } else canvas.fit(); });
@@ -624,11 +691,11 @@
         <h3>Items <small>click to edit · drag ⋮ to reorder</small></h3>
         <div class="list" id="pItems">${(cat.items || []).map(e => { const it = resolveItem(e, S.catalog); return `<div class="it ${it.hidden ? "is-hidden" : ""}" data-item="${esc(e.id)}"><span class="h">⋮</span><span class="n">${esc(it.name)}${it.override ? `<span class="ovr">this store</span>` : ""}${it.description ? `<small>${esc(it.description)}</small>` : ""}</span><span class="p">${it.soldOut ? `<span class="sold">Sold Out!</span>` : esc(it.price) || "<span class=info>price?</span>"}</span></div>`; }).join("")}</div>
         <div class="rowbtns"><button class="btn small primary" id="pAddItem">＋ Add item</button><button class="btn small danger" id="pDelCat">Delete section</button></div>`;
-      $("#pName").onchange = e => { const v = e.target.value.trim(); if (v) mutate(loc => { findCat(loc, cat.id).name = v; }); };
+      $("#pName").onchange = e => { const v = e.target.value.trim(); if (v) { mutate(loc => { findCat(loc, cat.id).name = v; }); remindCstore(); } };
       $("#pCatNote").onchange = e => mutate(loc => { findCat(loc, cat.id).note = e.target.value.trim(); });
       $$("[data-item]", p).forEach(el => el.onclick = () => openItem(el.dataset.item));
       $("#pAddItem").onclick = () => openAddItem(cat.id);
-      $("#pDelCat").onclick = () => { if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this TV?`)) return; S.sel = null; mutate(loc => { const s = loc.screens[S.si]; s.categories = s.categories.filter(c => c.id !== cat.id); }, "Section deleted"); };
+      $("#pDelCat").onclick = () => { if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this TV?`)) return; S.sel = null; mutate(loc => { const s = loc.screens[S.si]; s.categories = s.categories.filter(c => c.id !== cat.id); }, "Section deleted"); remindCstore(); };
       $$("[data-cols]", p).forEach(x => x.onclick = () => { o.cols = +x.dataset.cols; canvas.save(); });
       if (window.Sortable) S.sortables.push(new Sortable($("#pItems"), { handle: ".h", animation: 150, onEnd: () => { const order = $$("#pItems .it").map(x => x.dataset.item); mutate(loc => { const c = findCat(loc, cat.id); c.items.sort((a, b2) => order.indexOf(a.id) - order.indexOf(b2.id)); }); } }));
     } else if (b.kind === "image") {
@@ -700,13 +767,15 @@
         <div class="add" data-additem="${esc(cat.id)}">＋ Add item to ${esc(cat.name)}</div>
       </div>`).join("")}
       ${cats.length ? "" : `<div class="empty">Nothing on this TV yet. Tap <b>＋ Section</b> to add a heading like “Breakfast”.</div>`}
-      <div class="m-note" data-note="1">${sc.note ? esc(sc.note) : `<span class="info">+ note at the bottom of the TV (optional)</span>`}</div>
-      <p class="info" style="text-align:center">Moving things around, photos and text sizes are done on a computer.</p>`;
-    $$("[data-cat]", host).forEach(el => el.onclick = () => openCategory(el.dataset.cat));
+      ${perm().full ? `<div class="m-note" data-note="1">${sc.note ? esc(sc.note) : `<span class="info">+ note at the bottom of the TV (optional)</span>`}</div>
+      <p class="info" style="text-align:center">Moving things around, photos and text sizes are done on a computer.</p>`
+      : `<p class="limited-note">Tap an item to mark it <b style="color:#e5484d">sold out</b> or back in stock. Prices and items are changed by your district manager.</p>`}`;
+    const full = perm().full;
+    if (full) $$("[data-cat]", host).forEach(el => el.onclick = () => openCategory(el.dataset.cat));
     $$("[data-item]", host).forEach(el => el.onclick = () => openItem(el.dataset.item));
     $$("[data-additem]", host).forEach(el => el.onclick = () => openAddItem(el.dataset.additem));
-    $("[data-note]", host).onclick = openNote;
-    if (window.Sortable) {
+    $("[data-note]", host) && ($("[data-note]", host).onclick = openNote);
+    if (window.Sortable && full) {
       S.sortables.push(new Sortable(host, { draggable: ".m-sec", handle: ".mh-handle", animation: 150, onEnd: () => { const order = $$(".m-sec", host).map(el => el.dataset.cid); mutate(loc => { loc.screens[S.si].categories.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); }); } }));
       $$(".mitems", host).forEach(ul => S.sortables.push(new Sortable(ul, { group: "items", handle: ".h", animation: 150, onEnd: () => {
         const dom = {}; $$(".mitems", host).forEach(u => { dom[u.dataset.cid] = $$(".mi", u).map(li => li.dataset.item); });
@@ -742,12 +811,12 @@
       const id = cat ? catId : uid();
       mutate(loc => { if (cat) { const c = findCat(loc, catId); c.name = name; c.note = note; } else loc.screens[S.si].categories.push({ id, name, note, items: [], box: { x: 5, y: 30, w: 42, k: 1, align: "center", cols: 1 } }); }, "Saved");
       if (!cat && isDesktop()) S.sel = "cat:" + id;
-      closeSheet();
+      remindCstore(); closeSheet();
     };
     if (cat) {
       const move = d => mutate(loc => { const cs = loc.screens[S.si].categories; const i = cs.findIndex(c => c.id === catId), j = i + d; if (j < 0 || j >= cs.length) return false; [cs[i], cs[j]] = [cs[j], cs[i]]; });
       $("#cUp", el).onclick = () => { move(-1); closeSheet(); }; $("#cDown", el).onclick = () => { move(1); closeSheet(); };
-      $("#cDel", el).onclick = () => { if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this TV?`)) return; S.sel = null; mutate(loc => { const s = loc.screens[S.si]; s.categories = s.categories.filter(c => c.id !== catId); }, "Section deleted"); closeSheet(); };
+      $("#cDel", el).onclick = () => { if (!confirm(`Delete "${cat.name}" and its ${(cat.items || []).length} items from this TV?`)) return; S.sel = null; mutate(loc => { const s = loc.screens[S.si]; s.categories = s.categories.filter(c => c.id !== catId); }, "Section deleted"); remindCstore(); closeSheet(); };
     }
   }
   function openAddItem(catId) {
@@ -768,14 +837,21 @@
       const itemId = picked || slug(name);
       if (!S.catalog[itemId]) await setDoc(doc(db, "menuItems", itemId), { name, price, description: "", createdAt: serverTimestamp(), createdBy: S.user.email });
       const entry = { id: uid(), itemId }; if (S.catalog[itemId] && price && price !== S.catalog[itemId].price) entry.price = price;
-      await mutate(loc => { findCat(loc, catId).items.push(entry); }, `Added ${name}`); closeSheet();
+      await mutate(loc => { findCat(loc, catId).items.push(entry); }, `Added ${name}`); remindCstore(); closeSheet();
     };
   }
   function openItem(entryId) {
     const entry = findEntry(JSON.parse(JSON.stringify(S.loc)), entryId); if (!entry) return;
     const it = resolveItem(entry, S.catalog);
+    if (!perm().full) {   // store login without full controls: sold out / back in stock only
+      const el = sheet(`<h3>${esc(it.name)}</h3><p class="info">Price: <b style="color:#fff">${esc(it.price) || "—"}</b>${it.soldOut ? ` · <b style="color:#e5484d">Sold Out!</b>` : ""}</p>
+        <div class="btns"><button class="btn ${it.soldOut ? "primary" : "danger"} grow2" id="iSold">${it.soldOut ? "✓ Back in stock" : "Mark sold out"}</button><button class="btn" id="iCancel">Cancel</button></div>`);
+      $("#iCancel", el).onclick = closeSheet;
+      $("#iSold", el).onclick = () => { const on = !it.soldOut; mutate(loc => { const e = findEntry(loc, entryId); if (on) e.soldOut = true; else delete e.soldOut; }, on ? `${it.name} marked sold out` : `${it.name} is back in stock`); remindCstore(); closeSheet(); };
+      return;
+    }
     const listedAt = it.custom || it.missing ? [] : S.allowed.filter(id => (S.all[id]?.screens || []).some(s => (s.categories || []).some(c => (c.items || []).some(e => e.itemId === it.itemId))));
-    const others = listedAt.filter(id => id !== S.locId);
+    const others = perm().allStores ? listedAt.filter(id => id !== S.locId) : [];
     const el = sheet(`<h3>${esc(it.name)}</h3>
       ${it.missing ? `<p class="err">This item no longer exists. Remove it.</p>` : `
       <label class="field"><span>Name</span><input id="iName" value="${esc(it.name)}"></label>
@@ -792,12 +868,12 @@
     $$("input[name=scope]", el).forEach(r => r.onchange = () => $$(".scope label", el).forEach(l => l.classList.toggle("on", $("input", l).checked)));
     const move = d => mutate(loc => { const c = catOf(loc, entryId); const i = c.items.findIndex(e => e.id === entryId), j = i + d; if (j < 0 || j >= c.items.length) return false; [c.items[i], c.items[j]] = [c.items[j], c.items[i]]; });
     $("#iUp", el) && ($("#iUp", el).onclick = () => { move(-1); closeSheet(); }); $("#iDown", el) && ($("#iDown", el).onclick = () => { move(1); closeSheet(); });
-    $("#iSold", el) && ($("#iSold", el).onclick = () => { const on = !it.soldOut; mutate(loc => { const e = findEntry(loc, entryId); if (on) e.soldOut = true; else delete e.soldOut; }, on ? `${it.name} marked sold out` : `${it.name} is back in stock`); closeSheet(); });
-    $("#iRemove", el).onclick = () => { if (!confirm(`Remove "${it.name}" from this TV?`)) return; mutate(loc => { loc.screens[S.si].categories.forEach(c => { c.items = (c.items || []).filter(e => e.id !== entryId); }); }, "Removed"); closeSheet(); };
+    $("#iSold", el) && ($("#iSold", el).onclick = () => { const on = !it.soldOut; mutate(loc => { const e = findEntry(loc, entryId); if (on) e.soldOut = true; else delete e.soldOut; }, on ? `${it.name} marked sold out` : `${it.name} is back in stock`); remindCstore(); closeSheet(); });
+    $("#iRemove", el).onclick = () => { if (!confirm(`Remove "${it.name}" from this TV?`)) return; mutate(loc => { loc.screens[S.si].categories.forEach(c => { c.items = (c.items || []).filter(e => e.id !== entryId); }); }, "Removed"); remindCstore(); closeSheet(); };
     $("#iSave", el).onclick = async () => {
       const name = $("#iName", el).value.trim(), price = $("#iPrice", el).value.trim(), desc = $("#iDesc", el).value.trim(), hidden = $("#iHidden", el).checked; if (!name) return;
       try {
-        if (it.custom) { await mutate(loc => Object.assign(findEntry(loc, entryId), { name, price, description: desc, hidden }), "Saved"); closeSheet(); return; }
+        if (it.custom) { await mutate(loc => Object.assign(findEntry(loc, entryId), { name, price, description: desc, hidden }), "Saved"); remindCstore(); closeSheet(); return; }
         const base = S.catalog[it.itemId] || {}, patch = {}; if (name !== base.name) patch.name = name; if (desc !== (base.description || "")) patch.description = desc;
         const scope = others.length ? $("input[name=scope]:checked", el).value : "all";
         if (scope === "all") {
@@ -813,7 +889,7 @@
           await mutate(loc => { loc.screens.forEach(s => (s.categories || []).forEach(c => (c.items || []).forEach(e => { if (e.itemId === it.itemId) { if (price && price !== base.price) e.price = price; else delete e.price; } }))); findEntry(loc, entryId).hidden = hidden; });
           toast(`${name} is ${price} at this store only`);
         }
-        closeSheet();
+        remindCstore(); closeSheet();
       } catch (e) { console.error(e); toast("Save failed: " + (e.code || e.message), true, 5000); }
     };
   }
@@ -821,6 +897,39 @@
     const el = sheet(`<h3>Note at the bottom of the TV</h3><label class="field"><span>Text (leave empty for none)</span><input id="nText" value="${esc(screen().note || "")}"></label><div class="btns"><button class="btn primary" id="nSave">Save</button></div>`);
     $("#nText", el).focus(); $("#nSave", el).onclick = () => { const t = $("#nText", el).value.trim(); mutate(loc => { loc.screens[S.si].note = t; }, "Saved"); closeSheet(); };
   }
+  // ------------------------------------------------------------ OVERWATCH --
+  // Super admins only: every login that has signed in, its role, its store, and whether a
+  // store login gets full add/remove/price controls (default: sold out only).
+  $("#overwatchBtn").onclick = async () => {
+    if (!perm().overwatch) return;
+    const el = sheet(`<h3>Overwatch <small>logins & permissions</small></h3><p class="info">Loading…</p>`);
+    let rows; try { const snap = await getDocs(collection(db, "admins")); rows = []; snap.forEach(d => rows.push({ uid: d.id, ...d.data() })); }
+    catch (e) { $(".sheet", el).innerHTML = `<h3>Overwatch</h3><p class="err">Couldn't list logins: ${esc(e.code || e.message)}. Publish the latest firestore.rules.</p>`; return; }
+    const order = { super: 0, manager: 1, store: 2 }; rows.sort((a, b) => (order[a.role] ?? 9) - (order[b.role] ?? 9) || String(a.email || "").localeCompare(String(b.email || "")));
+    const storeOpts = sel => `<option value="">— pick a store —</option>` + Object.keys(S.all).sort(storeSort).map(id => `<option value="${esc(id)}" ${sel === id ? "selected" : ""}>${esc(S.all[id]?.name || id)}</option>`).join("");
+    const row = r => `<div class="ow-row" data-uid="${esc(r.uid)}">
+        <span class="em">${esc(r.email || r.uid)}<small>${r.role === "store" ? (r.locId ? esc(S.all[r.locId]?.name || r.locId) : "no store yet") : r.role === "manager" ? "stores come from FindMi" : "sees every store"}</small></span>
+        <span class="badge ${esc(r.role || "")}">${esc(ROLE_NAMES[r.role] || r.role || "?")}</span>
+        <div class="ctl">
+          <label>Role <select data-f="role"><option value="store" ${r.role === "store" ? "selected" : ""}>Store login</option><option value="manager" ${r.role === "manager" ? "selected" : ""}>District manager</option><option value="super" ${r.role === "super" ? "selected" : ""}>Super admin</option></select></label>
+          ${r.role === "store" ? `<label>Store <select data-f="locId">${storeOpts(r.locId)}</select></label>
+          <label><input type="checkbox" data-f="full" ${r.full === true ? "checked" : ""}> Full controls (add / remove / prices)</label>` : ""}
+        </div></div>`;
+    $(".sheet", el).innerHTML = `<h3>Overwatch <small>logins & permissions</small></h3>
+      <p class="info">Everyone who has signed in at least once. Store logins can only mark items sold out until you turn on <b>Full controls</b>. Create new logins in Firebase → Authentication; they appear here after their first sign-in.</p>
+      <div id="owList">${rows.map(row).join("") || `<p class="info">No logins yet.</p>`}</div>
+      <div class="btns"><button class="btn primary" id="owClose">Done</button></div>`;
+    $("#owClose", el).onclick = closeSheet;
+    $$(".ow-row", el).forEach(rw => {
+      const r = rows.find(x => x.uid === rw.dataset.uid);
+      $$("[data-f]", rw).forEach(inp => inp.onchange = async () => {
+        const f = inp.dataset.f, v = inp.type === "checkbox" ? inp.checked : inp.value;
+        if (f === "role" && r.uid === S.user.uid && v !== "super" && !confirm("Remove your own super admin access?")) { inp.value = r.role; return; }
+        try { await updateDoc(doc(db, "admins", r.uid), { [f]: v, updatedAt: serverTimestamp(), updatedBy: S.user.email }); r[f] = v; toast("Saved"); if (f === "role") $("#overwatchBtn").click(); }
+        catch (e) { toast("Save failed: " + (e.code || e.message), true, 5000); }
+      });
+    });
+  };
   $("#settingsBtn").onclick = () => {
     const sc = screen();
     const el = sheet(`<h3>${esc(S.loc.name || S.locId)}</h3>
