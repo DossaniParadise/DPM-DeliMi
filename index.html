@@ -76,6 +76,11 @@
     background: var(--orange); color: #000; border: .25vw solid #fff; box-shadow: 0 .3vw 1vw rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.6vw; text-align: center; line-height: 1; padding: .3vw; }
   body.edit .fimg { display: none; }
+  /* &debug=1 — on-screen photo diagnostics for a TV that is not showing its pictures */
+  .dbg { position: fixed; right: 1vw; bottom: 1vw; z-index: 9999; background: rgba(0,0,0,.88); color: #fff; font: 1.1vw/1.4 ui-monospace, Menlo, monospace; padding: .8vw 1vw; border-radius: .6vw; border: .15vw solid #F48120; max-width: 60vw; }
+  .dbg b { color: #F48120; } .dbg .ok { color: #77BF44; } .dbg .bad { color: #ff5b5b; font-weight: 700; } .dbg div { word-break: break-all; }
+  body.debug .fimg[data-failed] { outline: .3vw dashed #ff5b5b; min-height: 6vw; background: rgba(255,91,91,.15); }
+  body.debug .fimg[data-failed]::after { content: "photo failed to load"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #ff5b5b; font-weight: 800; font-size: 1.2vw; text-align: center; }
 
   /* Free layout: sections, note and text boxes are placed by the admin (x/y/w in % of the TV, k = size multiplier). */
   .free { position: fixed; z-index: 3; --k: 1; }
@@ -312,9 +317,9 @@
       const z = zOf(im, 20), op = im.opacity != null && im.opacity !== "" ? `opacity:${+im.opacity};` : "";
       if (im.h) {   // cropped: fixed frame, picture zoomed & panned inside
         return `<div class="fimg crop" style="left:${+im.x || 0}%;top:${+im.y || 0}%;width:${+im.w || 15}%;height:${+im.h}%;z-index:${z};${op}">
-          <img src="${esc(im.url)}" alt="" style="width:${(+im.zoom || 1) * 100}%;left:${+im.ox || 0}%;top:${+im.oy || 0}%">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`;
+          <img src="${esc(im.url)}" alt="" data-iid="${esc(im.id || "")}" style="width:${(+im.zoom || 1) * 100}%;left:${+im.ox || 0}%;top:${+im.oy || 0}%">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`;
       }
-      return `<div class="fimg" style="left:${+im.x || 0}%;top:${+im.y || 0}%;width:${+im.w || 15}%;z-index:${z};${op}"><img src="${esc(im.url)}" alt="">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`;
+      return `<div class="fimg" style="left:${+im.x || 0}%;top:${+im.y || 0}%;width:${+im.w || 15}%;z-index:${z};${op}"><img src="${esc(im.url)}" alt="" data-iid="${esc(im.id || "")}">${im.label ? `<span class="plabel">${esc(im.label)}</span>` : ""}</div>`;
     };
     const catHtml = cat => { const items = cat.items.filter(it => !it.hidden && !it.missing); const b = free ? (cat.box || {}) : null;
       return `<section class="cat ${free ? "free" : (items.length > 14 ? "wide" : "")}" data-cid="${esc(cat.id)}" ${free ? `style="${boxStyle(b, 0)}" data-align="${esc(b.align || "center")}" data-cols="${b.cols === 2 ? 2 : 1}"` : ""}>
@@ -333,7 +338,8 @@
         ${(screen.texts || []).map(t => `<div class="ftext free" data-tid="${esc(t.id)}" style="${boxStyle(t, 10)}" data-align="${esc(t.align || "center")}" data-color="${esc(t.color || "white")}" data-wrap="${t.wrap === false ? "no" : "yes"}" data-bold="${t.bold === false ? 0 : 1}">${esc(t.text)}</div>`).join("")}`
       : `<div class="board"><div class="menu">${screen.categories.map(catHtml).join("")}</div>
         ${screen.note ? `<div class="screen-note">${esc(screen.note)}</div>` : ""}</div>`}
-      ${(screen.images || []).map(imgHtml).join("")}`;
+      ${(screen.images || []).map(imgHtml).join("")}${DEBUG ? `<div class="dbg" id="dbg"></div>` : ""}`;
+    watchPhotos(screen.images || []);
     showStatus(`Updated ${fmtTime()}${lastFromCache ? " · showing offline copy" : ""}`, lastFromCache);
     if (free) document.documentElement.style.setProperty("--fs", "1.55vw"); else fitToScreen();
   }
@@ -351,6 +357,24 @@
   }
   window.addEventListener("resize", () => { if (locationDoc && catalog) render(); });
 
+  // Photo diagnostics: mark any picture that fails to load; with &debug=1 also list every
+  // photo link and its status in the corner so a TV can be checked from across the room.
+  const DEBUG = params.get("debug") === "1";
+  if (DEBUG) document.body.classList.add("debug");
+  const photoState = {};
+  function watchPhotos(images) {
+    const paint = () => { const d = $("#dbg"); if (!d) return;
+      d.innerHTML = `<b>DeliMi photo check</b> · ${esc(locId)} screen ${screenNo} · ${images.length} photo${images.length === 1 ? "" : "s"} · online: ${navigator.onLine ? "yes" : "no"}<br>` +
+        images.map((im, i) => { const st = photoState[im.id || i] || "loading…"; return `<div><span class="${st === "ok" ? "ok" : st === "loading…" ? "" : "bad"}">${st === "ok" ? "✓" : st === "loading…" ? "…" : "✗"}</span> ${esc(im.url)} ${st === "ok" ? "" : `<span class="bad">${esc(st)}</span>`}</div>`; }).join("") +
+        `<div style="opacity:.7;margin-top:.4vw">Remove &amp;debug=1 from the address to hide this.</div>`; };
+    $$(".fimg img").forEach((img, i) => {
+      const key = img.dataset.iid || i;
+      const mark = (st) => { photoState[key] = st; img.closest(".fimg")?.toggleAttribute("data-failed", st !== "ok"); paint(); };
+      if (img.complete && img.naturalWidth) mark("ok");
+      else { img.addEventListener("load", () => mark("ok")); img.addEventListener("error", () => mark("failed to load — link dead, or this TV's network blocks i.ibb.co")); setTimeout(() => { if (!photoState[key]) mark("still loading after 20 s"); }, 20000); }
+    });
+    paint();
+  }
   function showStatus(text, bad) { statusEl.textContent = text; statusEl.classList.toggle("offline", !!bad); }
 
   function scheduleDailyReload() {
