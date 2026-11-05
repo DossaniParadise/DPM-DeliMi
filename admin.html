@@ -191,6 +191,15 @@
   .cstore.fade { opacity: 0; }
   .cstore button { background: rgba(0,0,0,.18); border: 0; color: #111; width: 30px; height: 30px; border-radius: 50%; font-size: 18px; font-weight: 800; cursor: pointer; flex: 0 0 auto; }
   @keyframes cstoreIn { from { transform: translate(-50%, -20px); opacity: 0; } }
+  .diag-row { display: grid; grid-template-columns: 64px 1fr; gap: 4px 12px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .diag-row .th { width: 64px; height: 64px; border-radius: 8px; background: #111 center/cover no-repeat; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 22px; grid-row: span 3; }
+  .diag-row .where { font-weight: 700; } .diag-row .where small { color: var(--dim); font-weight: 400; margin-left: 6px; }
+  .diag-row .url { display: flex; gap: 6px; align-items: center; }
+  .diag-row .url input { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; padding: 6px 8px; }
+  .diag-row .st { font-weight: 700; font-size: 13px; } .diag-row .st.ok { color: var(--green); } .diag-row .st.bad { color: var(--red); } .diag-row .st.wait { color: var(--dim); }
+  .diag-row .acts { display: flex; gap: 6px; flex-wrap: wrap; } .diag-row .acts > * { display: inline-flex; width: auto; margin: 0; }
+  .diag-api { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; background: var(--card2); }
+  .diag-api .r { margin-top: 8px; font-size: 13px; word-break: break-word; }
   .ow-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .ow-row .em { font-weight: 700; word-break: break-all; }
   .ow-row .em small { display: block; color: var(--dim); font-weight: 400; }
@@ -238,6 +247,7 @@
         <button class="btn small" id="dSection">＋ Section</button>
         <span class="spacer"></span>
         <button class="btn small" id="dArrange" title="Put the sections back into a tidy two-column layout">Auto-arrange</button>
+        <button class="btn small" id="dDiag" title="Check that every photo link still works">🩺 Photo check</button>
         <span class="info" id="dHint">Click anything on the TV to edit it · drag to move · orange corner to resize</span>
       </div>
       <div class="tv-box" id="tvBox"><div class="lay" id="lay"></div></div>
@@ -930,6 +940,85 @@
       });
     });
   };
+  // ----------------------------------------------------------- PHOTO CHECK --
+  // Lists every photo link on the TVs, tests that each one actually loads, shows its size and
+  // load time, and can test the imgbb upload key with a tiny throw-away upload.
+  $("#dDiag").onclick = () => openDiag();
+  const loadProbe = (url, ms = 15000) => new Promise(res => {
+    const t0 = performance.now(), img = new Image(); let done = false;
+    const fin = v => { if (done) return; done = true; res({ ...v, ms: Math.round(performance.now() - t0) }); };
+    const tm = setTimeout(() => fin({ ok: false, why: "timed out after " + ms / 1000 + " s" }), ms);
+    img.onload = () => { clearTimeout(tm); fin({ ok: true, w: img.naturalWidth, h: img.naturalHeight }); };
+    img.onerror = () => { clearTimeout(tm); fin({ ok: false, why: "did not load (deleted, blocked, or bad link)" }); };
+    img.src = url;
+  });
+  async function testImgbbKey() {
+    // 1×1 transparent PNG, auto-deleted by imgbb after 60 s.
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    const fd = new FormData(); fd.append("image", png); fd.append("name", "delimi-selftest"); fd.append("expiration", "60");
+    const t0 = performance.now();
+    const res = await fetch("https://api.imgbb.com/1/upload?key=" + encodeURIComponent(IMGBB_API_KEY), { method: "POST", body: fd });
+    let j = null; try { j = await res.json(); } catch (e) {}
+    const ms = Math.round(performance.now() - t0);
+    if (res.ok && j?.success) return { ok: true, ms, url: j.data?.url, msg: `Upload API works (${ms} ms). Test image: ${j.data?.url}` };
+    return { ok: false, ms, msg: `Upload API failed — HTTP ${res.status}${j?.error ? ` · ${j.error.message} (code ${j.error.code})` : ""}` + (res.status === 400 && /key/i.test(j?.error?.message || "") ? " · the API key looks wrong or was revoked" : "") };
+  }
+  async function openDiag(scope) {
+    const P = perm(); if (!P.full) return;
+    scope = scope || "store";
+    const el = sheet(`<h3>Photo check <small>links & upload API</small></h3><p class="info">Loading…</p>`);
+    // Fresh copies of every store this person can see, so other stores' photos are current too.
+    try { const ls = await getDocs(collection(db, "locations")); ls.forEach(d => { S.all[d.id] = d.data(); }); } catch (e) {}
+    const ids = scope === "all" ? S.allowed : [S.locId];
+    const rows = [];
+    for (const id of ids) (S.all[id]?.screens || []).forEach((sc, si) => { if (scope === "tv" && (id !== S.locId || si !== S.si)) return; (sc.images || []).forEach(im => rows.push({ locId: id, name: S.all[id]?.name || id, si, im })); });
+    const host = $(".sheet", el);
+    host.innerHTML = `<h3>Photo check <small>links & upload API</small></h3>
+      <div class="diag-api"><b>imgbb upload key</b> <span class="info">· ${esc(IMGBB_API_KEY.slice(0, 6))}…${esc(IMGBB_API_KEY.slice(-4))}</span>
+        <div class="rowbtns"><button class="btn small" id="dgApi">Test the upload API</button></div><div class="r info" id="dgApiR">Uploads a 1×1 test image that imgbb deletes after a minute.</div></div>
+      <label class="field"><span>Show photos on</span><select id="dgScope" class="sel"><option value="tv" ${scope === "tv" ? "selected" : ""}>This TV only</option><option value="store" ${scope === "store" ? "selected" : ""}>${esc(S.loc.name || S.locId)} (all TVs)</option>${S.allowed.length > 1 ? `<option value="all" ${scope === "all" ? "selected" : ""}>All my stores</option>` : ""}</select></label>
+      <p class="info" id="dgSum">${rows.length ? `Checking ${rows.length} photo link${rows.length === 1 ? "" : "s"}…` : "No photos on these TVs."}</p>
+      <div id="dgList">${rows.map((r, i) => `<div class="diag-row" data-i="${i}">
+          <a class="th" href="${esc(r.im.url)}" target="_blank" rel="noopener" style="background-image:url('${esc(r.im.url)}')" title="Open the photo in a new tab"></a>
+          <div class="where">${esc(r.name)} <small>TV ${r.si + 1}${r.im.label ? " · " + esc(r.im.label) : ""}</small></div>
+          <div class="url"><input readonly value="${esc(r.im.url)}" onclick="this.select()"><button class="btn small" data-copy>Copy</button><a class="btn small" href="${esc(r.im.url)}" target="_blank" rel="noopener">Open ↗</a></div>
+          <div class="st wait">checking…</div>
+          <div class="acts"><label class="btn small">Replace photo<input type="file" accept="image/*" data-replace hidden></label><button class="btn small danger" data-remove>Remove from TV</button></div>
+        </div>`).join("")}</div>
+      <p class="info" style="margin-top:12px">A photo that fails here fails on the TV too. If it loads here but not on one TV, that TV's network is blocking <code>i.ibb.co</code> — open the TV's page with <code>&amp;debug=1</code> on that screen to see what it sees.</p>
+      <div class="btns"><button class="btn primary" id="dgClose">Done</button></div>`;
+    $("#dgClose", host).onclick = closeSheet;
+    $("#dgScope", host).onchange = e => openDiag(e.target.value);
+    $("#dgApi", host).onclick = async () => { const r = $("#dgApiR", host); r.textContent = "Testing…"; r.className = "r info";
+      try { const t = await testImgbbKey(); r.textContent = t.msg; r.className = "r " + (t.ok ? "ok" : "err"); r.style.color = t.ok ? "var(--green)" : "var(--red)"; }
+      catch (e) { r.textContent = "Could not reach api.imgbb.com — " + e.message + " (network / ad-blocker?)"; r.style.color = "var(--red)"; } };
+    $$(".diag-row", host).forEach(rw => {
+      const r = rows[+rw.dataset.i];
+      $("[data-copy]", rw).onclick = async () => { try { await navigator.clipboard.writeText(r.im.url); toast("Link copied"); } catch (e) { $("input", rw).select(); } };
+      $("[data-remove]", rw).onclick = () => { if (!confirm(`Remove this photo from ${r.name} TV ${r.si + 1}?`)) return; mutateAt(r.locId, loc => { const sc = loc.screens[r.si]; sc.images = (sc.images || []).filter(x => x.id !== r.im.id); }, "Photo removed").then(() => openDiag(scope)); };
+      $("[data-replace]", rw).onchange = async e => { const f = e.target.files[0]; if (!f) return; toast("Uploading…", false, 8000);
+        try { const url = await uploadToImgbb(f); await mutateAt(r.locId, loc => { const im = (loc.screens[r.si].images || []).find(x => x.id === r.im.id); if (im) im.url = url; }, "Photo replaced"); openDiag(scope); }
+        catch (err) { toast("Upload failed: " + err.message, true, 5000); } };
+    });
+    // probe every link (a few at a time)
+    let okN = 0, badN = 0, i = 0;
+    const worker = async () => { while (i < rows.length) { const k = i++, r = rows[k], st = $(`.diag-row[data-i="${k}"] .st`, host); if (!st) return;
+      const p = await loadProbe(r.im.url); if (!st.isConnected) return;
+      if (p.ok) { okN++; st.className = "st ok"; st.textContent = `✓ loads · ${p.w}×${p.h} px · ${p.ms} ms` + (p.ms > 4000 ? " (slow)" : ""); }
+      else { badN++; st.className = "st bad"; st.textContent = "✗ " + p.why; $(".th", host.querySelector(`.diag-row[data-i="${k}"]`)).textContent = "✗"; }
+      const sum = $("#dgSum", host); if (sum) sum.innerHTML = `${okN} OK${badN ? ` · <b style="color:var(--red)">${badN} broken</b>` : ""} of ${rows.length}` + (okN + badN < rows.length ? " · checking…" : badN ? " — replace or remove the broken ones below." : " — every photo link works."); } };
+    await Promise.all([worker(), worker(), worker()]);
+  }
+  // Like mutate(), for any store this person may edit (Photo check works across stores).
+  async function mutateAt(locId, fn, okText) {
+    if (locId === S.locId) return mutate(fn, okText);
+    try {
+      const snap = await getDoc(doc(db, "locations", locId)); const loc = snap.exists() ? snap.data() : { screens: [] }; loc.screens = loc.screens || [];
+      if (fn(loc) === false) return;
+      await setDoc(doc(db, "locations", locId), { screens: loc.screens, updatedAt: serverTimestamp(), updatedBy: S.user.email }, { merge: true }); S.all[locId] = { ...S.all[locId], ...loc };
+      if (okText) toast(okText);
+    } catch (e) { console.error(e); toast("Save failed: " + (e.code || e.message), true, 5000); }
+  }
   $("#settingsBtn").onclick = () => {
     const sc = screen();
     const el = sheet(`<h3>${esc(S.loc.name || S.locId)}</h3>
@@ -938,7 +1027,9 @@
       ${sc ? `<label class="field"><span>Logo on TV ${S.si + 1} only</span><select id="sScreenBrand" class="sel">${brandOptions(sc.brand || "", true)}</select></label>
       <label class="field"><span>Name for TV ${S.si + 1} (only editors see this)</span><input id="sTitle" value="${esc(sc.title || "")}" placeholder="e.g. Breakfast board"></label>
       <p class="info">This TV's link: <a href="index.html?id=${esc(S.locId)}&screen=${S.si + 1}" target="_blank">index.html?id=${esc(S.locId)}&screen=${S.si + 1}</a></p>` : ""}
+      <div class="rowbtns"><button class="btn small" id="sDiag">🩺 Photo check (links & upload API)</button></div>
       <div class="btns"><button class="btn primary grow2" id="sSave">Save</button>${sc ? `<button class="btn danger" id="sDel">Delete TV ${S.si + 1}</button>` : ""}</div>`);
+    $("#sDiag", el).onclick = () => openDiag();
     $("#sSave", el).onclick = () => { const active = $("#sActive", el).checked, title = $("#sTitle", el)?.value.trim(), brand = $("#sBrand", el).value, sb = $("#sScreenBrand", el)?.value || "";
       mutate(loc => { loc.active = active; loc.brand = brand; if (sc) { loc.screens[S.si].title = title; loc.screens[S.si].brand = sb; } }, "Saved"); closeSheet(); };
     if (sc) $("#sDel", el).onclick = () => { const n = (sc.categories || []).reduce((a, c) => a + (c.items || []).length, 0); if (!confirm(`Delete TV ${S.si + 1}${n ? ` and its ${n} items` : ""}?`)) return; S.sel = null; mutate(loc => { loc.screens.splice(S.si, 1); S.si = Math.max(0, S.si - 1); }, "TV deleted"); closeSheet(); };
